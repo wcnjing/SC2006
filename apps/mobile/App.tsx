@@ -1,15 +1,17 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { ActivityIndicator, Button, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthProvider, useAuth } from './src/auth/AuthProvider';
 import { InactivityGuard } from './src/auth/InactivityGuard';
 import { DevAuthScreen } from './src/dev/DevAuthScreen';
 import { DevHomeScreen } from './src/dev/DevHomeScreen';
 import { OnboardingScreen } from './src/dev/OnboardingScreen';
+import { DevProfileScreen } from './src/dev/DevProfileScreen';
 
 function Root() {
   const { session, profile, loading, justRegistered, refreshProfile, signOut } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'profile'>('home');
 
   if (loading) {
     return (
@@ -36,10 +38,28 @@ function Root() {
     return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
   }
   return (
-    <DevHomeScreen
-      showOnboardingPrompt={!profile?.onboarded}
-      onStartOnboarding={() => setShowOnboarding(true)}
-    />
+    <View style={styles.appContainer}>
+      <View style={styles.content}>
+        {activeTab === 'home' ? (
+          <DevHomeScreen
+            showOnboardingPrompt={!profile.onboarded}
+            onStartOnboarding={() => setShowOnboarding(true)}
+          />
+        ) : (
+          <DevProfileScreen />
+        )}
+      </View>
+      <View style={styles.tabBar}>
+        <Pressable style={styles.tab} onPress={() => setActiveTab('home')}>
+          <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>Home</Text>
+        </Pressable>
+        <Pressable style={styles.tab} onPress={() => setActiveTab('profile')}>
+          <Text style={[styles.tabText, activeTab === 'profile' && styles.activeTabText]}>
+            Profile
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -62,4 +82,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   error: { color: '#b00020', marginBottom: 12 },
+  appContainer: { flex: 1, backgroundColor: '#ffffff' },
+  content: { flex: 1 },
+  tabBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#cccccc',
+    backgroundColor: '#ffffff',
+    paddingBottom: 12,
+  },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 14 },
+  tabText: { color: '#666666', fontSize: 16, fontWeight: '600' },
+  activeTabText: { color: '#1565c0' },
 });

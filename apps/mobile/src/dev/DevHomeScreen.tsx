@@ -65,7 +65,6 @@ export function DevHomeScreen({
         )}
         ListEmptyComponent={<Text style={styles.bodyText}>No activities yet. Run `npm run seed`.</Text>}
       />
-      <Button title="Log out" onPress={() => signOut()} />
     </View>
   );
 }
