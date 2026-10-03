@@ -7,7 +7,7 @@ import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 
 export function DevAuthScreen() {
-  const { signIn, signUp, signedOutReason } = useAuth();
+  const { signIn, signInWithMockpass, signUp, signedOutReason } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -73,6 +73,9 @@ export function DevAuthScreen() {
         title={mode === 'login' ? 'New here? Create an account' : 'Have an account? Log in'}
         onPress={() => setMode(mode === 'login' ? 'register' : 'login')}
       />
+      {mode === 'login' && (
+        <Button title="Log in with Mockpass" onPress={signInWithMockpass} disabled={busy} />
+      )}
     </View>
   );
 }

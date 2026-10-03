@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { ActivityIndicator, Button, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthProvider, useAuth } from './src/auth/AuthProvider';
 import { InactivityGuard } from './src/auth/InactivityGuard';
-import { DevAuthScreen } from './src/dev/DevAuthScreen';
-import { DevHomeScreen } from './src/dev/DevHomeScreen';
-import { OnboardingScreen } from './src/dev/OnboardingScreen';
-import { DevProfileScreen } from './src/dev/DevProfileScreen';
+import { DevAuthScreen } from './src/screens/DevAuthScreen';
+import { DevHomeScreen } from './src/screens/DevHomeScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { DevProfileScreen } from './src/screens/DevProfileScreen';
 
 function Root() {
   const { session, profile, loading, justRegistered, refreshProfile, signOut } = useAuth();

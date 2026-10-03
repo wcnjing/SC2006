@@ -3,10 +3,12 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "services/mockpass-auth"
   ],
   "scripts": {
     "mobile": "npm run start --workspace apps/mobile",
+    "mockpass": "npm start --workspace services/mockpass-auth",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:db": "npm run test:db --workspace packages/shared",

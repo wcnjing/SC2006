@@ -8,6 +8,7 @@ import {
   type SignUpInput,
 } from '@communitylink/shared';
 import type { Session } from '@supabase/supabase-js';
+import * as WebBrowser from 'expo-web-browser';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
@@ -20,6 +21,7 @@ interface AuthContextValue {
   signedOutReason: string | null;
   justRegistered: boolean;
   signIn: (input: SignInInput) => Promise<void>;
+  signInWithMockpass: () => Promise<void>;
   signUp: (input: SignUpInput) => Promise<void>;
   signOut: (reason?: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -80,6 +82,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSignedOutReason(null);
         setJustRegistered(false);
         await apiSignIn(supabase, input);
+      },
+      signInWithMockpass: async () => {
+        setSignedOutReason(null);
+        const authServiceUrl =
+          process.env.EXPO_PUBLIC_MOCKPASS_AUTH_URL ?? 'http://127.0.0.1:3000';
+        const redirectUri = 'communitylink://mockpass/callback';
+        const result = await WebBrowser.openAuthSessionAsync(
+          `${authServiceUrl}/auth/mockpass/start`,
+          redirectUri,
+        );
+        if (result.type !== 'success') return;
+
+        const callback = new URL(result.url);
+        const accessToken = callback.searchParams.get('access_token');
+        const refreshToken = callback.searchParams.get('refresh_token');
+        if (!accessToken || !refreshToken) {
+          throw new Error('Mockpass did not return a valid session.');
+        }
+        setJustRegistered(true);
+        await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
       },
       signUp: async (input) => {
         setSignedOutReason(null);
