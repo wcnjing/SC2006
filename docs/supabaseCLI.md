@@ -44,7 +44,7 @@
 
    7. Example of what your `.env` files will look like
    ![alt text](images/env1.png)
-   <br>
+   
    ![alt text](images/env2.png)
 7. # Very Important
    1. If your PC IPv4 address changes, you need to update the URL in the `.env` files, if not your phone cannot access the database
