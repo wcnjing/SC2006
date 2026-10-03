@@ -1,0 +1,27 @@
+-- Neighbourhoods (HDB towns / planning areas) with approximate centre points.
+-- Reference data lives in a migration so every environment has it; test users,
+-- activities and posts come from `npm run seed` instead.
+insert into public.neighbourhoods (name, lat, lng) values
+  ('Ang Mo Kio',     1.3691, 103.8454),
+  ('Bedok',          1.3236, 103.9273),
+  ('Bishan',         1.3526, 103.8352),
+  ('Bukit Batok',    1.3590, 103.7637),
+  ('Bukit Merah',    1.2819, 103.8239),
+  ('Bukit Panjang',  1.3774, 103.7719),
+  ('Choa Chu Kang',  1.3840, 103.7470),
+  ('Clementi',       1.3162, 103.7649),
+  ('Geylang',        1.3201, 103.8918),
+  ('Hougang',        1.3612, 103.8863),
+  ('Jurong East',    1.3329, 103.7436),
+  ('Jurong West',    1.3404, 103.7090),
+  ('Kallang',        1.3100, 103.8651),
+  ('Pasir Ris',      1.3721, 103.9474),
+  ('Punggol',        1.3984, 103.9072),
+  ('Queenstown',     1.2942, 103.7861),
+  ('Sembawang',      1.4491, 103.8185),
+  ('Sengkang',       1.3868, 103.8914),
+  ('Serangoon',      1.3554, 103.8679),
+  ('Tampines',       1.3496, 103.9568),
+  ('Toa Payoh',      1.3343, 103.8563),
+  ('Woodlands',      1.4382, 103.7890),
+  ('Yishun',         1.4304, 103.8354);

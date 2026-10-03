@@ -1,0 +1,25 @@
+{
+  "name": "communitylink",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "mobile": "npm run start --workspace apps/mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:db": "npm run test:db --workspace packages/shared",
+    "db:types": "supabase gen types typescript --linked > packages/shared/src/database.types.ts && prettier --write packages/shared/src/database.types.ts",
+    "db:types:local": "supabase gen types typescript --local > packages/shared/src/database.types.ts && prettier --write packages/shared/src/database.types.ts",
+    "seed": "node --env-file-if-exists=.env scripts/seed.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
