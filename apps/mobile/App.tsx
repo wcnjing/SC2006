@@ -25,11 +25,16 @@ export default function App() {
       <InactivityGuard>
         <Root />
       </InactivityGuard>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" backgroundColor="#ffffff" />
     </AuthProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
 });
