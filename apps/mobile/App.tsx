@@ -25,7 +25,7 @@ export default function App() {
       <InactivityGuard>
         <Root />
       </InactivityGuard>
-      <StatusBar style="dark" backgroundColor="#ffffff" />
+      <StatusBar style="dark" />
     </AuthProvider>
   );
 }
