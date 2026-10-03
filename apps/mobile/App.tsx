@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { ActivityIndicator, Button, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Button, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AuthProvider, useAuth } from './src/auth/AuthProvider';
 import { InactivityGuard } from './src/auth/InactivityGuard';
 import { DevAuthScreen } from './src/dev/DevAuthScreen';
@@ -51,9 +51,17 @@ function Root() {
       </View>
       <View style={styles.tabBar}>
         <Pressable style={styles.tab} onPress={() => setActiveTab('home')}>
+          <Image
+            source={require('./assets/home-icon.png')}
+            style={[styles.tabIcon, activeTab !== 'home' && styles.inactiveTabIcon]}
+          />
           <Text style={[styles.tabText, activeTab === 'home' && styles.activeTabText]}>Home</Text>
         </Pressable>
         <Pressable style={styles.tab} onPress={() => setActiveTab('profile')}>
+          <Image
+            source={require('./assets/profile-icon.png')}
+            style={[styles.tabIcon, activeTab !== 'profile' && styles.inactiveTabIcon]}
+          />
           <Text style={[styles.tabText, activeTab === 'profile' && styles.activeTabText]}>
             Profile
           </Text>
@@ -92,6 +100,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 14 },
+  tabIcon: { width: 24, height: 24, marginBottom: 4 },
+  inactiveTabIcon: { opacity: 0.45 },
   tabText: { color: '#666666', fontSize: 16, fontWeight: '600' },
   activeTabText: { color: '#1565c0' },
 });
