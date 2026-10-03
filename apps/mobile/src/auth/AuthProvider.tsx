@@ -18,6 +18,7 @@ interface AuthContextValue {
   loading: boolean;
   // shown on the login screen after a forced sign-out (timeout, suspension)
   signedOutReason: string | null;
+  justRegistered: boolean;
   signIn: (input: SignInInput) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<void>;
   signOut: (reason?: string) => Promise<void>;
@@ -31,9 +32,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [signedOutReason, setSignedOutReason] = useState<string | null>(null);
+  const [justRegistered, setJustRegistered] = useState(false);
 
   const signOut = useCallback(async (reason?: string) => {
     setSignedOutReason(reason ?? null);
+    setJustRegistered(false);
     await apiSignOut(supabase);
   }, []);
 
@@ -44,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signOut(`Your account has been suspended.${why}`);
       return;
     }
+    if (next.onboarded) setJustRegistered(false);
     setProfile(next);
   }, [signOut]);
 
@@ -71,18 +75,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       loading,
       signedOutReason,
+      justRegistered,
       signIn: async (input) => {
         setSignedOutReason(null);
+        setJustRegistered(false);
         await apiSignIn(supabase, input);
       },
       signUp: async (input) => {
         setSignedOutReason(null);
+        setJustRegistered(true);
         await apiSignUp(supabase, input);
       },
       signOut,
       refreshProfile: loadProfile,
     }),
-    [session, profile, loading, signedOutReason, signOut, loadProfile],
+    [session, profile, loading, signedOutReason, justRegistered, signOut, loadProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

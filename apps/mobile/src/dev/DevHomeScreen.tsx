@@ -7,7 +7,13 @@ import { RoleGate } from '../auth/RoleGate';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 
-export function DevHomeScreen() {
+export function DevHomeScreen({
+  showOnboardingPrompt = false,
+  onStartOnboarding,
+}: {
+  showOnboardingPrompt?: boolean;
+  onStartOnboarding?: () => void;
+}) {
   const { profile, signOut } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +36,14 @@ export function DevHomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Hi, {profile.display_name}</Text>
-      <Text>
+      {showOnboardingPrompt && (
+        <View style={styles.onboardingPrompt}>
+          <Text style={styles.promptTitle}>Complete your profile</Text>
+          <Text>Set your neighbourhood and preferences to get a more useful experience.</Text>
+          <Button title="Set up profile" onPress={onStartOnboarding} />
+        </View>
+      )}
+      <Text style={styles.bodyText}>
         Role: {profile.role} · Onboarded: {profile.onboarded ? 'yes' : 'no'}
       </Text>
       <RoleGate permission="activity:create">
@@ -50,7 +63,7 @@ export function DevHomeScreen() {
             {item.title} — {item.location_name}
           </Text>
         )}
-        ListEmptyComponent={<Text>No activities yet. Run `npm run seed`.</Text>}
+        ListEmptyComponent={<Text style={styles.bodyText}>No activities yet. Run `npm run seed`.</Text>}
       />
       <Button title="Log out" onPress={() => signOut()} />
     </View>
@@ -58,10 +71,24 @@ export function DevHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, paddingTop: 64, gap: 8 },
-  title: { fontSize: 24, fontWeight: '700' },
-  heading: { fontSize: 18, fontWeight: '600', marginTop: 16 },
-  badge: { backgroundColor: '#e6f4fe', padding: 8, borderRadius: 6 },
-  item: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#ccc' },
+  container: {
+    flex: 1,
+    padding: 24,
+    paddingTop: 64,
+    gap: 8,
+    backgroundColor: '#ffffff',
+  },
+  title: { fontSize: 24, fontWeight: '700', color: '#000000' },
+  bodyText: { color: '#000000' },
+  heading: { fontSize: 18, fontWeight: '600', marginTop: 16, color: '#000000' },
+  badge: { backgroundColor: '#e6f4fe', padding: 8, borderRadius: 6, color: '#000000' },
+  item: {
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#cccccc',
+    color: '#000000',
+  },
   error: { color: '#b00020' },
+  onboardingPrompt: { gap: 8, padding: 12, backgroundColor: '#fff4e5', borderRadius: 8 },
+  promptTitle: { fontSize: 18, fontWeight: '600' },
 });
