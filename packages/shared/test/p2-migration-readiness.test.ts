@@ -86,22 +86,15 @@ describe('P2 migration history and ordering (static only)', () => {
     expect(migration(target).endsWith(read(source))).toBe(true);
     expect(sql(migration(target))).toBe(sql(read(source)));
   });
- it('has unique P2 migration versions in the correct order', () => {
-  const files = readdirSync(resolve(root, 'docs/proposals/migrations'))
-    .filter((name) => name.endsWith('.sql'))
-    .sort();
+  it('has unique P2 migration versions in the correct order', () => {
+    const files = readdirSync(resolve(root, 'docs/proposals/migrations'))
+      .filter((name) => name.endsWith('.sql'))
+      .sort();
 
-  expect(new Set(files.map((name) => name.split('_')[0])).size)
-    .toBe(files.length);
+    expect(new Set(files.map((name) => name.split('_')[0])).size).toBe(files.length);
 
-  expect(files).toEqual([
-    baseline,
-    management,
-    ratings,
-    swipe,
-    hardening,
-  ]);
-});
+    expect(files).toEqual([baseline, management, ratings, swipe, hardening]);
+  });
   it.each([baseline, management, ratings, swipe, hardening])(
     'labels %s proposed and wraps it in a transaction',
     (name) => {

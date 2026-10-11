@@ -5,12 +5,12 @@ Supabase client. The resident ID comes from authentication; callers cannot reque
 another resident's collection. An active resident account is required. Existing
 RLS remains enforced. No database or UI changes are required.
 
-| Function | Return value |
-| --- | --- |
+| Function                            | Return value                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------- |
 | `listMyActivityCollections(client)` | `Promise<MyActivityCollections>` with `saved`, `joined`, `history` arrays |
-| `listMySavedActivities(client)` | `Promise<MyActivityCard[]>` for Saved |
-| `listMyJoinedActivities(client)` | `Promise<MyActivityCard[]>` for Joined |
-| `listMyActivityHistory(client)` | `Promise<MyActivityCard[]>` for History |
+| `listMySavedActivities(client)`     | `Promise<MyActivityCard[]>` for Saved                                     |
+| `listMyJoinedActivities(client)`    | `Promise<MyActivityCard[]>` for Joined                                    |
+| `listMyActivityHistory(client)`     | `Promise<MyActivityCard[]>` for History                                   |
 
 A `MyActivityCard` is `{ activity: Activity, saved: boolean, joined: boolean }`.
 The full existing activity record provides card details and its details-route ID.

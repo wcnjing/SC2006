@@ -3,13 +3,13 @@
 Implemented on `p2-Activity`, using the existing upcoming scheduled activity API.
 No database changes, geocoding, dependencies or changes to P1/P3/P4/P5.
 
-| Requirement | Existing data | Behaviour |
-| --- | --- | --- |
-| FR 4.2.2 Distance | `activities.lat`, `activities.lng` | Within 1/5/10/25 km of the device location, using great-circle distance. Explicit browser permission; never substitutes a neighbourhood centre. |
-| FR 4.2.4 Date | `activities.starts_at` | Optional inclusive from/to start dates in Singapore time, entered as YYYY-MM-DD. Invalid or reversed ranges show validation feedback. |
-| FR 4.2.5 Accessibility | `activities.accessibility_features` | Options come from the loaded activities; all selected features must match. Empty arrays do not imply accessibility. |
-| FR 4.2.6 Indoor/outdoor | `activities.is_outdoor` | Any setting, Indoor or Outdoor. |
-| FR 4.2.7 Immediate updates | Existing client-side filter API | Every edit immediately recomputes results; all criteria combine with keyword, category and location using AND. |
+| Requirement                | Existing data                       | Behaviour                                                                                                                                       |
+| -------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR 4.2.2 Distance          | `activities.lat`, `activities.lng`  | Within 1/5/10/25 km of the device location, using great-circle distance. Explicit browser permission; never substitutes a neighbourhood centre. |
+| FR 4.2.4 Date              | `activities.starts_at`              | Optional inclusive from/to start dates in Singapore time, entered as YYYY-MM-DD. Invalid or reversed ranges show validation feedback.           |
+| FR 4.2.5 Accessibility     | `activities.accessibility_features` | Options come from the loaded activities; all selected features must match. Empty arrays do not imply accessibility.                             |
+| FR 4.2.6 Indoor/outdoor    | `activities.is_outdoor`             | Any setting, Indoor or Outdoor.                                                                                                                 |
+| FR 4.2.7 Immediate updates | Existing client-side filter API     | Every edit immediately recomputes results; all criteria combine with keyword, category and location using AND.                                  |
 
 Clear filters resets every criterion and restores the loaded upcoming activities.
 There are separate messages for no upcoming activities, no matching results, invalid dates,

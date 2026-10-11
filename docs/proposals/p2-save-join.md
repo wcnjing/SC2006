@@ -12,7 +12,7 @@ schema-generation commands against the live database.
   `activity_bookmarks` row. Repeated saves confirm an existing own bookmark after
   a unique-key conflict; deletes are idempotent. No upsert/update privilege is needed.
 - Join/Leave exclusively call `set_activity_registration(target_activity,
-  should_join)`. The RPC obtains the resident from `auth.uid()`, checks active
+should_join)`. The RPC obtains the resident from `auth.uid()`, checks active
   resident eligibility, serializes joins with an activity-row lock, enforces
   scheduled/future status and capacity, and makes repeated joins idempotent.
 - The same resident can save and join an activity simultaneously. Unsave does
