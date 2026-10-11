@@ -77,7 +77,9 @@ describe('P2 migration history and ordering (static only)', () => {
   });
 
   it.each(originals)('preserves the original bytes of %s', (path, checksum) => {
-  expect(createHash('sha256').update(read(path).replace(/\r?\n/g, '\r\n')).digest('hex')).toBe(checksum);
+    expect(createHash('sha256').update(read(path).replace(/\r?\n/g, '\r\n')).digest('hex')).toBe(
+      checksum,
+    );
   });
   it.each([
     [baseline, 'docs/proposals/p2-save-join.sql'],
