@@ -1,30 +1,12 @@
-// TEMPORARY: proves the end-to-end slice (log in -> profile -> read activities).
+// Temporary authenticated home until the shared app shell lands.
 // Replace with the real tab navigation once Summer's shell lands.
-import type { Activity } from '@communitylink/shared';
-import { useEffect, useState } from 'react';
-import { Button, FlatList, StyleSheet, Text, View } from 'react-native';
+import { Button, StyleSheet, Text, View } from 'react-native';
 import { RoleGate } from '../auth/RoleGate';
 import { useAuth } from '../auth/AuthProvider';
-import { supabase } from '../lib/supabase';
+import { ActivityList } from '../activities/ActivityList';
 
 export function DevHomeScreen() {
   const { profile, signOut } = useAuth();
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase
-      .from('activities')
-      .select('*')
-      .gte('starts_at', new Date().toISOString())
-      .order('starts_at')
-      .limit(20)
-      .then(({ data, error: err }) => {
-        if (err) setError(err.message);
-        else setActivities(data);
-      });
-  }, []);
-
   if (!profile) return null;
 
   return (
@@ -41,17 +23,7 @@ export function DevHomeScreen() {
       </RoleGate>
 
       <Text style={styles.heading}>Upcoming activities</Text>
-      {error && <Text style={styles.error}>{error}</Text>}
-      <FlatList
-        data={activities}
-        keyExtractor={(a) => a.id}
-        renderItem={({ item }) => (
-          <Text style={styles.item}>
-            {item.title} — {item.location_name}
-          </Text>
-        )}
-        ListEmptyComponent={<Text>No activities yet. Run `npm run seed`.</Text>}
-      />
+      <ActivityList />
       <Button title="Log out" onPress={() => signOut()} />
     </View>
   );
@@ -62,6 +34,4 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700' },
   heading: { fontSize: 18, fontWeight: '600', marginTop: 16 },
   badge: { backgroundColor: '#e6f4fe', padding: 8, borderRadius: 6 },
-  item: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#ccc' },
-  error: { color: '#b00020' },
 });
