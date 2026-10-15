@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   View,
@@ -23,13 +24,25 @@ type Props = {
   /** True for the 5 tab roots: the tab bar already handles the bottom inset. */
   inTabs?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  /** Pull-to-refresh (scrolling screens only). Pass both. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 };
 
 /**
  * Standard screen wrapper: safe areas, keyboard avoidance, scrolling, and a
  * centred max-width column on web and tablets.
  */
-export function Screen({ children, header, footer, scroll = true, inTabs, contentStyle }: Props) {
+export function Screen({
+  children,
+  header,
+  footer,
+  scroll = true,
+  inTabs,
+  contentStyle,
+  refreshing,
+  onRefresh,
+}: Props) {
   const edges: Edge[] =
     inTabs || footer ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom'];
   const content = <View style={[styles.column, styles.padded, contentStyle]}>{children}</View>;
@@ -47,6 +60,16 @@ export function Screen({ children, header, footer, scroll = true, inTabs, conten
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl
+                  refreshing={!!refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.primary}
+                  colors={[colors.primary]}
+                />
+              ) : undefined
+            }
           >
             {content}
           </ScrollView>

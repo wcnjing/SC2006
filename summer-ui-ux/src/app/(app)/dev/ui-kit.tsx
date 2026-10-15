@@ -9,9 +9,12 @@ import {
   Card,
   Checkbox,
   ChipGroup,
+  ConfirmDialog,
   EmptyState,
+  ErrorState,
   IconButton,
   ListRow,
+  LoadingState,
   Screen,
   ScreenHeader,
   Section,
@@ -28,11 +31,12 @@ import { colors, spacing } from '@/theme/tokens';
  * from Settings in development builds.
  */
 export default function UiKitScreen() {
-  const [chips, setChips] = useState<string[]>(['nature']);
+  const [chips, setChips] = useState<string[]>(['gardening']);
   const [distance, setDistance] = useState<string>('1');
   const [tab, setTab] = useState<'upcoming' | 'saved' | 'past'>('upcoming');
   const [checked, setChecked] = useState(true);
   const [sel, setSel] = useState<string | null>('recent');
+  const [dialog, setDialog] = useState(false);
 
   return (
     <Screen header={<ScreenHeader title="UI kit" />} contentStyle={styles.content}>
@@ -144,8 +148,8 @@ export default function UiKitScreen() {
           onChange={(v) => setChips(v as string[])}
           options={[
             { value: 'sports', label: 'Sports' },
-            { value: 'nature', label: 'Nature' },
-            { value: 'arts', label: 'Arts' },
+            { value: 'gardening', label: 'Gardening' },
+            { value: 'arts-crafts', label: 'Arts & Crafts' },
           ]}
         />
         <ChipGroup
@@ -223,6 +227,33 @@ export default function UiKitScreen() {
             onAction={() => {}}
           />
         </Card>
+      </Section>
+
+      <Section title="Loading, error, confirm">
+        <Card variant="outline" padded={false}>
+          <LoadingState />
+        </Card>
+        <Card variant="outline" padded={false}>
+          <ErrorState message="Check your connection and try again." onRetry={() => {}} />
+        </Card>
+        <Button label="Open confirm dialog" variant="outline" onPress={() => setDialog(true)} />
+        <ConfirmDialog
+          visible={dialog}
+          title="Cancel your spot?"
+          body="Use for destructive or irreversible actions. Works on web, unlike Alert.alert."
+          confirmLabel="Cancel my spot"
+          cancelLabel="Keep my spot"
+          destructive
+          onConfirm={() => setDialog(false)}
+          onCancel={() => setDialog(false)}
+        />
+      </Section>
+
+      <Section title="Activity components (src/features/activities)">
+        <AppText color={colors.textMuted}>
+          ActivityCard (large / compact), ActivityRow, ActivityTags, ActivityImage, Stars, SwipeDeck
+          + SwipeButtons. See Home, Discover and My activities for them in use.
+        </AppText>
       </Section>
     </Screen>
   );

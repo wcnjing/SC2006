@@ -26,7 +26,8 @@ type Row = {
 };
 type DB = { rows: Row[] };
 
-const DB_KEY = 'mock-db-v1';
+// v2: catalog ids now match P1 (e.g. 'gardening', 'elderly-friendly'), so v1 data is reseeded.
+const DB_KEY = 'mock-db-v2';
 const SESSION_KEY = 'mock-session-v1';
 const LATENCY_MS = 400;
 
@@ -74,8 +75,8 @@ function seed(): DB {
         profile: seedProfile(
           'Mrs Tan',
           'tampines',
-          ['nature', 'volunteering', 'social'],
-          ['elderly'],
+          ['gardening', 'volunteering', 'social'],
+          ['elderly-friendly'],
         ),
       },
       {
@@ -118,6 +119,20 @@ async function startSession(row: Row): Promise<Session> {
   const session = toSession(row);
   await writeJSON(SESSION_KEY, { accountId: row.account.accountId, token: session.token });
   return session;
+}
+
+/**
+ * The logged-in account's row, like auth.uid() on the server. Used by the
+ * other mock services (activities) so they never take a user id from the UI.
+ */
+export async function currentMockUser(): Promise<{
+  account: UserAccount;
+  profile: UserProfile | null;
+}> {
+  const stored = await readJSON<{ accountId: string }>(SESSION_KEY);
+  const row = stored && (await load()).rows.find((r) => r.account.accountId === stored.accountId);
+  if (!row || row.account.status === 'suspended') throw new ServiceError('NOT_AUTHENTICATED');
+  return { account: row.account, profile: row.profile };
 }
 
 export const mockAuth: AuthService = {

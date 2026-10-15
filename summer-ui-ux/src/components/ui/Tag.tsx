@@ -38,14 +38,21 @@ export function Tag({
   );
 }
 
-/** Maps an activity category id to a tag tone. Unknown categories are neutral. */
+/** Maps an activity category id (P1 INTERESTS) to a tag tone. Unknown categories are neutral. */
+const CATEGORY_TONES: Record<string, TagTone> = {
+  gardening: 'nature',
+  outdoors: 'nature',
+  volunteering: 'nature',
+  sports: 'sports',
+  fitness: 'sports',
+  wellness: 'sports',
+  'arts-crafts': 'arts',
+  music: 'arts',
+  cooking: 'arts',
+};
+
 export const toneForCategory = (categoryId: string): TagTone =>
-  (
-    ({ nature: 'nature', sports: 'sports', wellness: 'sports', arts: 'arts' }) as Record<
-      string,
-      TagTone
-    >
-  )[categoryId] ?? 'neutral';
+  CATEGORY_TONES[categoryId] ?? 'neutral';
 
 const styles = StyleSheet.create({
   tag: {

@@ -49,6 +49,9 @@ export const colors = {
   tagAccess: { bg: '#E0F2FE', fg: '#065986' },
   tagNeutral: { bg: '#F2F4F7', fg: '#344054' },
 
+  // Rating stars. Decorative next to the number; 3:1 against white for the shape (WCAG 1.4.11).
+  star: '#B54708',
+
   singpass: '#F4333D',
   overlay: 'rgba(16, 24, 40, 0.5)',
 } as const;
