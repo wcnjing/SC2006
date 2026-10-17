@@ -6,14 +6,17 @@
  * Only the fields the shell needs are included here.
  */
 
-export type UserRole = 'consumer' | 'organiser' | 'admin';
+/** = P1's user_role enum. One role per account (profiles.role). */
+export type UserRole = 'resident' | 'organiser' | 'admin';
 
 export type AccountStatus = 'active' | 'suspended';
 
 /** <<entity>> UserAccount */
 export interface UserAccount {
   accountId: string;
-  phoneNumber: string | null; // [0..1]: Singpass-only accounts may not have one
+  /** Login email (FR 1.1 / 1.2, team decision: P1's email + password auth). */
+  email: string | null;
+  /** Always one entry, profiles.role. An array so a future multi-role model doesn't change callers. */
   roles: UserRole[];
   status: AccountStatus;
   createdAt: string; // ISO DateTime

@@ -1,4 +1,4 @@
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
 
@@ -7,16 +7,16 @@ import { AppText, Banner, Button, Screen, ScreenHeader, TextField } from '@/comp
 import { useAuth } from '@/context/AuthContext';
 import { useSettings } from '@/context/SettingsContext';
 import type { TranslationKey } from '@/i18n/en';
-import { validateNewPassword, validatePhone } from '@/lib/validation';
+import { validateNewPassword, validateEmail } from '@/lib/validation';
 import { errorMessageKey } from '@/services';
 import { colors, spacing } from '@/theme/tokens';
 
-type Field = 'phone' | 'password' | 'confirm';
+type Field = 'email' | 'password' | 'confirm';
 
 /**
  * Sign Up (mockup 4.A, middle). UC #3-01 CreateAccount, FR 1.1.
  *
- * Differs from the mockup: FR 1.1.1 only requires a phone number and a
+ * Differs from the mockup: FR 1.1.1 only requires login details (email, team decision) and a
  * password, so "Full name" and the photo moved to Complete Your Profile
  * (FR 2.1.2 / 2.1.3), where they become the display name and avatar.
  */
@@ -26,7 +26,7 @@ export default function RegisterScreen() {
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
 
-  const [values, setValues] = useState({ phone: '', password: '', confirm: '' });
+  const [values, setValues] = useState({ email: '', password: '', confirm: '' });
   const [errors, setErrors] = useState<Partial<Record<Field, TranslationKey>>>({});
   const [formError, setFormError] = useState<TranslationKey | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +38,7 @@ export default function RegisterScreen() {
 
   const submit = async () => {
     const errs: Partial<Record<Field, TranslationKey>> = {
-      phone: validatePhone(values.phone) ?? undefined,
+      email: validateEmail(values.email) ?? undefined,
       password: validateNewPassword(values.password) ?? undefined,
       confirm: values.confirm !== values.password ? 'error.passwordMismatch' : undefined,
     };
@@ -50,11 +50,11 @@ export default function RegisterScreen() {
     }
     setSubmitting(true);
     try {
-      await register(values.phone, values.password);
+      await register(values.email, values.password);
       // Status becomes 'onboarding', so the root guard routes to Complete Your Profile.
     } catch (e) {
       const key = errorMessageKey(e);
-      if (key === 'error.phoneTaken') setErrors({ phone: key });
+      if (key === 'error.emailTaken') setErrors({ email: key });
       else setFormError(key);
     } finally {
       setSubmitting(false);
@@ -68,15 +68,17 @@ export default function RegisterScreen() {
       {formError && <Banner tone="error">{t(formError)}</Banner>}
 
       <TextField
-        label={t('login.phone')}
-        placeholder={t('login.phonePlaceholder')}
-        value={values.phone}
-        onChangeText={set('phone')}
-        error={errors.phone && t(errors.phone)}
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        textContentType="telephoneNumber"
-        maxLength={12}
+        label={t('login.email')}
+        placeholder={t('login.emailPlaceholder')}
+        value={values.email}
+        onChangeText={set('email')}
+        error={errors.email && t(errors.email)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        maxLength={254}
         returnKeyType="next"
         onSubmitEditing={() => passwordRef.current?.focus()}
       />
@@ -109,7 +111,7 @@ export default function RegisterScreen() {
       />
 
       <Button label={t('common.next')} onPress={submit} loading={submitting} />
-      <SingpassButton onPress={() => router.push('/singpass')} />
+      <SingpassButton />
 
       <View style={styles.footer}>
         <AppText color={colors.textMuted} align="center">

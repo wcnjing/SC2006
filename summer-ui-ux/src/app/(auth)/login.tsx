@@ -1,4 +1,4 @@
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View, type TextInput } from 'react-native';
 
@@ -7,7 +7,7 @@ import { AppText, Banner, Button, LogoMark, Screen, TextField } from '@/componen
 import { useAuth } from '@/context/AuthContext';
 import { useSettings } from '@/context/SettingsContext';
 import type { TranslationKey } from '@/i18n/en';
-import { validatePhone } from '@/lib/validation';
+import { validateEmail } from '@/lib/validation';
 import { errorMessageKey } from '@/services';
 import { colors, radii, spacing } from '@/theme/tokens';
 
@@ -21,10 +21,10 @@ export default function LoginScreen() {
   const params = useLocalSearchParams<{ error?: string }>();
   const passwordRef = useRef<TextInput>(null);
 
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
-    phone?: TranslationKey;
+    email?: TranslationKey;
     password?: TranslationKey;
   }>({});
   const [formError, setFormError] = useState<TranslationKey | null>(
@@ -34,15 +34,15 @@ export default function LoginScreen() {
 
   const submit = async () => {
     const errs = {
-      phone: validatePhone(phone) ?? undefined,
+      email: validateEmail(email) ?? undefined,
       password: password ? undefined : ('error.passwordRequired' as const),
     };
     setFieldErrors(errs);
     setFormError(null);
-    if (errs.phone || errs.password) return;
+    if (errs.email || errs.password) return;
     setSubmitting(true);
     try {
-      await login(phone, password);
+      await login(email, password);
       // The root layout's guard switches to the app automatically.
     } catch (e) {
       setFormError(errorMessageKey(e));
@@ -72,18 +72,20 @@ export default function LoginScreen() {
       {formError && <Banner tone="error">{t(formError)}</Banner>}
 
       <TextField
-        label={t('login.phone')}
-        placeholder={t('login.phonePlaceholder')}
-        value={phone}
+        label={t('login.email')}
+        placeholder={t('login.emailPlaceholder')}
+        value={email}
         onChangeText={(v) => {
-          setPhone(v);
-          setFieldErrors((e) => ({ ...e, phone: undefined }));
+          setEmail(v);
+          setFieldErrors((e) => ({ ...e, email: undefined }));
         }}
-        error={fieldErrors.phone && t(fieldErrors.phone)}
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        textContentType="telephoneNumber"
-        maxLength={12}
+        error={fieldErrors.email && t(fieldErrors.email)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        maxLength={254}
         returnKeyType="next"
         onSubmitEditing={() => passwordRef.current?.focus()}
       />
@@ -118,7 +120,7 @@ export default function LoginScreen() {
         <View style={styles.line} />
       </View>
 
-      <SingpassButton onPress={() => router.push('/singpass')} />
+      <SingpassButton />
 
       <View style={styles.footer}>
         <AppText color={colors.textMuted}>{t('login.noAccount')}</AppText>

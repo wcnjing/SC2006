@@ -6,20 +6,17 @@ import type { TranslationKey } from '@/i18n/en';
  * re-validate; this only gives fast feedback.
  */
 
-/** Strip spaces/dashes and an optional +65 prefix. */
-export function normalisePhone(raw: string): string {
-  return raw.replace(/[\s-]/g, '').replace(/^\+?65(?=\d{8}$)/, '');
-}
-
-/** Singapore numbers: 8 digits starting with 3 (VoIP), 6 (landline), 8 or 9 (mobile). */
-export function validatePhone(raw: string): TranslationKey | null {
-  const phone = normalisePhone(raw);
-  if (!phone) return 'error.phoneRequired';
-  if (!/^[3689]\d{7}$/.test(phone)) return 'error.phoneFormat';
+/** Same rule as P1's validateEmail (@communitylink/shared), with translated messages. */
+export function validateEmail(raw: string): TranslationKey | null {
+  const email = raw.trim();
+  if (!email) return 'error.emailRequired';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'error.emailFormat';
   return null;
 }
 
-/** System password requirements (FR 1.1.4). Keep in sync with P1's backend rule. */
+export const normaliseEmail = (raw: string) => raw.trim().toLowerCase();
+
+/** System password requirements (FR 1.1.4). Stricter than P1's rule (8+ chars, a letter and a digit), so anything that passes here passes there. */
 export function validateNewPassword(pw: string): TranslationKey | null {
   if (!pw) return 'error.passwordRequired';
   if (pw.length < 8 || !/[A-Z]/.test(pw) || !/[a-z]/.test(pw) || !/\d/.test(pw))

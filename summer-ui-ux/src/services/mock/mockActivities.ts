@@ -8,11 +8,24 @@ import type {
   ActivityRecommendation,
   MyActivityCard,
   RecommendationOrigin,
+  UserAccount,
   UserProfile,
 } from '@/types/models';
 
 import { ServiceError, type ActivityDiscoverySession, type ActivityService } from '../types';
 import { currentMockUser } from './mockBackend';
+
+type CurrentUser = () => Promise<{ account: UserAccount; profile: UserProfile | null }>;
+
+/**
+ * Who is logged in. The mock auth backend by default; with Supabase login
+ * (before P2's API is wired in) it is the real Supabase user, so activity
+ * data is mocked but saves and joins belong to the real account.
+ */
+let currentUser: CurrentUser = currentMockUser;
+export const setMockActivityUser = (fn: CurrentUser) => {
+  currentUser = fn;
+};
 
 /**
  * In-device stand-in for P2's activity API (@communitylink/shared, `shyanne`
@@ -449,9 +462,9 @@ type UserState = {
 };
 type StateDB = Record<string, UserState>;
 
-/** The demo resident (Mrs Tan, 91234567) starts with a realistic history, so every My activities tab has content. */
-function initialState(phone: string | null, accountId: string, name: string): UserState {
-  if (phone !== '91234567') return { bookmarks: [], participation: {}, ratings: [] };
+/** The demo resident (Mrs Tan, mrstan@test.com) starts with a realistic history, so every My activities tab has content. */
+function initialState(email: string | null, accountId: string, name: string): UserState {
+  if (email !== 'mrstan@test.com') return { bookmarks: [], participation: {}, ratings: [] };
   return {
     bookmarks: [uuid(2), uuid(13)],
     participation: { [uuid(1)]: 'joined', [uuid(14)]: 'joined', [uuid(15)]: 'joined' },
@@ -469,10 +482,10 @@ function initialState(phone: string | null, accountId: string, name: string): Us
 }
 
 async function withUser<T>(fn: (state: UserState, accountId: string) => T | Promise<T>) {
-  const { account, profile } = await currentMockUser();
+  const { account, profile } = await currentUser();
   const db = (await readJSON<StateDB>(STATE_KEY)) ?? {};
   const state = (db[account.accountId] ??= initialState(
-    account.phoneNumber,
+    account.email,
     account.accountId,
     profile?.displayName ?? '',
   ));
@@ -587,7 +600,7 @@ const card = (activity: Activity, state: UserState): MyActivityCard => ({
 export const mockActivities: ActivityService = {
   async getRecommendations(options) {
     await delay();
-    const { profile } = await currentMockUser();
+    const { profile } = await currentUser();
     const hood = findNeighbourhood(profile?.neighbourhoodId);
     const origin: RecommendationOrigin | null = options?.deviceLocation
       ? { ...options.deviceLocation, source: 'device', label: 'your device location' }
@@ -697,7 +710,7 @@ export const mockActivities: ActivityService = {
   },
 
   async createDiscoverySession(restoredIds = []) {
-    const { account } = await currentMockUser();
+    const { account } = await currentUser();
     const excluded = new Set(restoredIds);
     const pending = new Set<string>();
     const session: ActivityDiscoverySession = {
@@ -706,7 +719,7 @@ export const mockActivities: ActivityService = {
       },
       async load(options) {
         await delay();
-        if ((await currentMockUser()).account.accountId !== account.accountId)
+        if ((await currentUser()).account.accountId !== account.accountId)
           throw new ServiceError('NOT_AUTHENTICATED');
         return withUser((state) =>
           applyFilters(

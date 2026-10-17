@@ -22,12 +22,17 @@ import type {
  */
 
 export type ServiceErrorCode =
-  | 'PHONE_TAKEN'
+  | 'EMAIL_TAKEN'
   | 'INVALID_CREDENTIALS'
   | 'ACCOUNT_SUSPENDED'
   | 'SINGPASS_FAILED'
   | 'NOT_AUTHENTICATED'
   | 'NETWORK'
+  /** Logged in, but the role can't do this (P2's APIs are resident-only). */
+  | 'FORBIDDEN'
+  | 'UPLOAD_FAILED'
+  /** Sign-up worked but the Supabase project requires email confirmation first. */
+  | 'CONFIRM_EMAIL'
   // Activities (map from P2's ApiError.code: not_found, full / conflict, skip_unavailable, busy, timeout)
   | 'NOT_FOUND'
   | 'ACTIVITY_FULL'
@@ -45,8 +50,16 @@ export class ServiceError extends Error {
 export const errorMessageKey = (e: unknown): TranslationKey => {
   if (!(e instanceof ServiceError)) return 'error.generic';
   switch (e.code) {
-    case 'PHONE_TAKEN':
-      return 'error.phoneTaken';
+    case 'EMAIL_TAKEN':
+      return 'error.emailTaken';
+    case 'FORBIDDEN':
+      return 'error.forbidden';
+    case 'UPLOAD_FAILED':
+      return 'error.uploadFailed';
+    case 'CONFIRM_EMAIL':
+      return 'error.confirmEmail';
+    case 'NETWORK':
+      return 'error.network';
     case 'INVALID_CREDENTIALS':
       return 'error.invalidCredentials';
     case 'ACCOUNT_SUSPENDED':
@@ -69,15 +82,22 @@ export const errorMessageKey = (e: unknown): TranslationKey => {
 };
 
 export interface AuthService {
-  /** FR 1.1: create a consumer account. Throws PHONE_TAKEN. Returns a session with profile = null. */
-  register(phone: string, password: string): Promise<Session>;
+  /** FR 1.1: create a resident account. Throws EMAIL_TAKEN. Returns a session with profile = null. */
+  register(email: string, password: string): Promise<Session>;
   /** FR 1.2: throws INVALID_CREDENTIALS / ACCOUNT_SUSPENDED. */
-  login(phone: string, password: string): Promise<Session>;
+  login(email: string, password: string): Promise<Session>;
   /**
-   * FR 1.3: exchange a Singpass identity (after consent) for a session.
-   * Links to an existing account or creates one; `isNew` tells the UI to
-   * route to Complete Profile with Singpass data prefilled.
+   * FR 1.3 Singpass. Two ways in, depending on the backend:
+   *  - singpassStartUrl() returns a URL → open it (Mockpass bridge); it comes
+   *    back to /mockpass/callback with tokens → completeSingpassRedirect()
+   *  - it returns null → the in-app mock consent screen → loginWithSingpass(identity)
+   * `isNew` tells the UI to route to Complete Profile with the name prefilled.
    */
+  singpassStartUrl(): string | null;
+  completeSingpassRedirect(tokens: {
+    accessToken: string;
+    refreshToken: string;
+  }): Promise<{ session: Session; isNew: boolean; displayName: string | null }>;
   loginWithSingpass(identity: SingpassIdentity): Promise<{ session: Session; isNew: boolean }>;
   /** Restore a persisted session (null if none or expired). */
   restore(): Promise<Session | null>;

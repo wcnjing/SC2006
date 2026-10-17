@@ -38,8 +38,8 @@ export const en = {
   'tab.profile': 'Profile',
 
   // Auth: login
-  'login.phone': 'Phone number',
-  'login.phonePlaceholder': 'Enter your 8-digit phone number',
+  'login.email': 'Email',
+  'login.emailPlaceholder': 'you@example.com',
   'login.password': 'Password',
   'login.passwordPlaceholder': 'Enter your password',
   'login.submit': 'Log in',
@@ -73,27 +73,34 @@ export const en = {
   'singpass.mockIdentity': 'Mock identity to log in as',
   'singpass.allow': 'I agree',
   'singpass.deny': 'Cancel',
+  'singpass.redirecting': 'Opening Singpass…',
+  'singpass.completing': 'Signing you in with Singpass…',
   'singpass.pdpa': 'Your data is handled in line with the PDPA and Singpass data-sharing policies.',
 
   // Validation / errors
-  'error.phoneRequired': 'Enter your phone number.',
-  'error.phoneFormat': 'Enter a valid 8-digit Singapore number starting with 3, 6, 8 or 9.',
-  'error.phoneTaken':
-    'This phone number is already registered. Log in instead, or use a different number.',
+  'error.emailRequired': 'Enter your email address.',
+  'error.emailFormat': 'Enter a valid email address, like name@example.com.',
+  'error.emailTaken':
+    'An account with this email already exists. Log in instead, or use a different email.',
   'error.passwordRequired': 'Enter your password.',
   'error.passwordWeak':
     'Password must be at least 8 characters, with an uppercase letter, a lowercase letter and a number.',
   'error.passwordMismatch': 'Passwords do not match.',
-  'error.invalidCredentials': 'Incorrect phone number or password.',
+  'error.invalidCredentials': 'Incorrect email or password.',
   'error.suspended': 'This account is suspended. Contact support for help.',
   'error.singpassFailed':
-    'Singpass login was cancelled or failed. Please try again or log in with your phone number.',
+    'Singpass login was cancelled or failed. Please try again or log in with your email.',
   'error.displayNameRequired': 'Enter a display name.',
   'error.displayNameLength': 'Display name must be 2 to 30 characters.',
   'error.neighbourhoodRequired': 'Select your neighbourhood.',
   'error.noChanges': 'Change at least one detail before saving.',
   'error.imageFormat': 'That file type is not supported. Choose a JPG, PNG or WEBP image.',
   'error.generic': 'Something went wrong. Please try again.',
+  'error.forbidden':
+    'Your account type can’t do this. Discover and joining are for resident accounts.',
+  'error.uploadFailed': 'We couldn’t upload your photo. Remove it and save, or try again later.',
+  'error.confirmEmail': 'Almost there! Check your inbox to confirm your email, then log in.',
+  'error.network': 'Can’t reach CommunityLink. Check your connection and try again.',
   'error.activityFull': 'Sorry, this activity just became full.',
   'error.activityUnavailable': 'This activity can no longer be joined.',
   'error.notFound': 'This activity is no longer available.',

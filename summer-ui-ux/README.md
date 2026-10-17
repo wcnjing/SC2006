@@ -1,7 +1,7 @@
 # CommunityLink: app shell
 
 React Native + Expo (SDK 57) + TypeScript, running on web, iOS and Android from one codebase.
-Navigation uses Expo Router (file-based, `src/app/`). Backend: Supabase (wired up by P1; until then a mock backend runs on the device).
+Navigation uses Expo Router (file-based, `src/app/`). Backend: P1's Supabase (email + password login, using `@communitylink/shared` from `../packages/shared`) when `.env` is filled in; otherwise an in-device mock backend, so it also runs with no setup.
 
 ## Run it
 
@@ -13,19 +13,32 @@ npm run typecheck  # tsc --noEmit
 npm run lint       # expo lint
 ```
 
+### Connect to Supabase (P1's backend)
+
+```bash
+cp .env.example .env   # then fill in the two EXPO_PUBLIC_SUPABASE_* values
+```
+
+Use the same URL and publishable key as `apps/mobile/.env`. For a local stack, follow `docs/start.md` / `npx supabase start`, then `npm run seed` at the repo root to create P1's test users. Restart `npm run web` after changing `.env`. With the keys set, login, sign-up, the session and the profile all go through P1's real API (`signIn`, `signUp`, `getMyProfile`, `updateMyProfile`); suspended accounts are signed out with the "account suspended" message. Leave `.env` empty (or set `EXPO_PUBLIC_BACKEND=mock`) to use the mock.
+
+**Singpass on Supabase (Xavier's Mockpass).** Xavier's `xavier` branch has a Mockpass bridge (`services/mockpass-auth`). Run it as `docs/start.md` on that branch describes, set `MOBILE_REDIRECT_URI=http://localhost:8081/mockpass/callback` for web (the default `communitylink://mockpass/callback` works in a development build, not in Expo Go), and put its URL in `EXPO_PUBLIC_MOCKPASS_AUTH_URL`. "Log in with Singpass" then opens Mockpass and returns to `src/app/(auth)/mockpass/callback.tsx`, which signs in with the returned tokens; new users go to Complete Your Profile. Without the bridge, the button opens the in-app mock consent screen (mock backend only).
+
+**Profile photos** upload to a Supabase Storage bucket named `avatars` (public read). P1's migrations don't create it yet; until they do, adding a photo shows "We couldn't upload your photo", and the profile still saves without it.
+
 ### Demo accounts (mock backend)
 
-Password for every account: `Password1`
+Password for every mock account: `Password1`. On Supabase, use P1's seeded accounts (same emails, minus Mrs Tan and the suspended one) with your `SEED_PASSWORD`.
 
-| Phone    | Roles               | Use it to test                                                                                                          |
-| -------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 91234567 | consumer            | normal user ("Mrs Tan"), Singpass-linked. Has joined, saved, past and rated activities, so every Week 9 screen has data |
-| 92345678 | consumer, organiser | Organiser dashboard entry in Profile                                                                                    |
-| 93456789 | consumer, admin     | Admin dashboard entry in Profile. No interests, so Home shows the "not personalised" fallback                           |
-| 94567890 | suspended           | the "account suspended" error                                                                                           |
+| Email              | Role      | Use it to test                                                                                                                 |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| mrstan@test.com    | resident  | the mockup persona ("Mrs Tan"), Singpass-linked. Has joined, saved, past and rated activities, so every Week 9 screen has data |
+| resident@test.com  | resident  | P1's "Resident Rachel" (Toa Payoh)                                                                                             |
+| organiser@test.com | organiser | Organiser dashboard entry in Profile (P1's "Organiser Omar")                                                                   |
+| admin@test.com     | admin     | Admin dashboard entry in Profile (P1's "Admin Aisha")                                                                          |
+| suspended@test.com | resident  | the "account suspended" error                                                                                                  |
 
-Mock Singpass: on Login, tap **Log in with singpass**. "Tan Mei Ling" logs in as the existing demo user. "Lim Wei Jie" is a new user, who goes to Complete Your Profile with the name prefilled.
-To reset the mock data, clear site data in the browser (or reinstall the app).
+Mock Singpass: on Login, tap **Log in with singpass**. "Tan Mei Ling" logs in as Mrs Tan. "Lim Wei Jie" is a new user, who goes to Complete Your Profile with the name prefilled.
+To reset the mock data, clear site data in the browser (or reinstall the app). A brand-new account (sign up, skip interests) shows Home's "not personalised" fallback.
 
 Mock activities are generated around Tampines relative to **today**, so "upcoming" and "past" are always correct when you demo. Handy ones to open directly:
 
@@ -94,18 +107,20 @@ Mock activities are generated around Tampines relative to **today**, so "upcomin
 
 ## Where this sits in the repo
 
-This folder is a **standalone** Expo app (own `package.json` and lockfile), kept separate from `apps/mobile` so nothing P1 built is affected. It is not part of the npm workspaces, so the root `npm install`, `npm run typecheck` and CI ignore it. Run it from here: `cd summer-ui-ux && npm install && npm run web`.
+This folder is a **standalone** Expo app (own `package.json` and lockfile), kept separate from `apps/mobile` so nothing P1 built is affected. It is not part of the npm workspaces. Run it from here: `cd summer-ui-ux && npm install && npm run web`.
 
-Integration to-do (P1 + Summer): `apps/mobile` and `@communitylink/shared` already have real Supabase auth, which logs in with **email** and password. The Lab 2 requirements (FR 1.1, 1.2) say **phone number** and password, and this shell's login and sign-up forms follow the requirements. Agree which one the team ships. Either way the change stays inside `src/services/` and the two form screens.
+It imports P1's shared package directly from `../packages/shared/src` (path alias in `tsconfig.json`, `watchFolders` in `metro.config.js`), so it runs the same auth, profile and validation code as `apps/mobile`. Login is **email + password** (team decision, P1's auth); the Lab 2 FR 1.1/1.2 wording says phone number, so mention the change in the report.
 
-## For P1: swapping in Supabase
+## For P1: what the shell uses
 
-Screens only talk to the interfaces in `src/services/types.ts` (`AuthService`, `ProfileService`).
-Write `src/services/supabase/*.ts` implementing them, then change the two lines in `src/services/index.ts`.
-Shared types in `src/types/models.ts` mirror the Lab 2 class diagram. Replace them with your canonical types, keeping the names.
-The client-side route guards are for user experience only. Real access control must come from Supabase row-level security.
+- `src/services/supabase/auth.ts`: `AuthService` + `ProfileService` on `signUp`, `signIn`, `signOut`, `getMyProfile`, `updateMyProfile`, `listNeighbourhoods`.
+- `src/services/supabase/mapping.ts`: `profiles` row → shell session (`role` → `roles: [role]`, `onboarded = false` → Complete Your Profile, `neighbourhood_id` ↔ catalog slug matched by name).
+- `src/services/supabase/errors.ts`: `ApiError.code` → `ServiceError` codes the screens translate.
+- Needed from P1: an `avatars` Storage bucket (see above). The client-side route guards are for user experience only; RLS is the real access control.
 
 ## For P2 (Shyanne): plugging in the real activity API
+
+**Status:** P2's functions are on the `shyanne` branch (PR #1), not on `main`, so the activity screens still use the mock data, even when logged in to Supabase (saves and joins are kept per real account). Once PR #1 is merged and this branch is updated, add `src/services/supabase/activities.ts` using the table below and switch `activityService` in `src/services/index.ts`.
 
 `ActivityService` in `src/services/types.ts` is a 1:1 wrapper over the functions on the `shyanne` branch, and the types in `src/types/models.ts` (`Activity`, `ActivityRecommendation`, `MyActivityCollections`, …) are copies of the shared ones, snake_case included. A Supabase implementation is mostly one-liners:
 
@@ -134,7 +149,7 @@ Map `ApiError.code` to `ServiceError` codes (`not_found` → `NOT_FOUND`, full �
 - **One selected-state colour.** The mockups mixed red and teal for selected chips, tabs and buttons. Everything uses brand red now, with a check icon so selection doesn't rely on colour alone (WCAG 1.4.1).
 - **Primary red darkened** from `#F04438` to `#D92D20`, because white text on the mockup red fails WCAG AA contrast (3.6:1 → 4.8:1).
 - **One header style.** Back arrow plus a dark, bold, left-aligned title on every pushed screen (the mockups also had centred red titles). Tab roots use the brand header (logo, bell, avatar).
-- **Sign up takes only phone and password** (FR 1.1.1). The mockup's "Full name" and photo moved to Complete Your Profile as display name and avatar (FR 2.1.2–2.1.3).
+- **Sign up takes only email and password** (FR 1.1.1; email instead of phone to match P1's auth). The mockup's "Full name" and photo moved to Complete Your Profile as display name and avatar (FR 2.1.2–2.1.3).
 - **Profile shows only data-model fields.** The "Bio" and "Favourite food" tiles aren't in the data dictionary or class diagram, so Profile shows neighbourhood, interests and accessibility preferences instead.
 - **No "Forgot password?" link.** It's not in the FRs or use cases, so it was left out rather than shipped as a dead link.
 - **Discover buttons are always visible.** The mockup puts ✕ / ♥ over the bottom of the card, where they scroll off on smaller phones and at larger text sizes. They now sit in a sticky bar above the tab bar, with text labels, so the button alternative (FR 3.2.6) is never hidden. Swiping right **saves** (as the mockup annotation says, it then appears in My activities → Saved); it never registers you.

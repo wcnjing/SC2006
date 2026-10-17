@@ -1,13 +1,36 @@
-import { mockActivities } from './mock/mockActivities';
+import { getMyProfile } from '@communitylink/shared';
+
+import { supabase } from '@/lib/supabase';
+
+import { mockActivities, setMockActivityUser } from './mock/mockActivities';
 import { mockAuth, mockProfile } from './mock/mockBackend';
-import type { ActivityService, AuthService, ProfileService } from './types';
+import { createSupabaseAuth } from './supabase/auth';
+import { toSession } from './supabase/mapping';
+import { ServiceError, type ActivityService, type AuthService, type ProfileService } from './types';
 
 /**
- * The service implementations the app uses. Swap these for the Supabase
- * versions once P1's auth/profile API and P2's activity API are merged.
+ * Which backend the app talks to. With EXPO_PUBLIC_SUPABASE_URL and
+ * EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY set (summer-ui-ux/.env), auth and
+ * profiles use P1's real Supabase API. Without them, everything runs on the
+ * in-device mock, so the shell works with no setup.
+ *
+ * Activities: still the mock until P2's API (`shyanne` branch) is merged.
+ * In Supabase mode the mock follows the real logged-in user.
  */
-export const authService: AuthService = mockAuth;
-export const profileService: ProfileService = mockProfile;
+const real = supabase ? createSupabaseAuth(supabase) : null;
+
+export const authService: AuthService = real?.auth ?? mockAuth;
+export const profileService: ProfileService = real?.profile ?? mockProfile;
 export const activityService: ActivityService = mockActivities;
+
+if (supabase) {
+  const client = supabase;
+  setMockActivityUser(async () => {
+    const { data } = await client.auth.getSession();
+    if (!data.session) throw new ServiceError('NOT_AUTHENTICATED');
+    const s = await toSession(client, data.session, await getMyProfile(client));
+    return { account: s.account, profile: s.profile };
+  });
+}
 
 export * from './types';

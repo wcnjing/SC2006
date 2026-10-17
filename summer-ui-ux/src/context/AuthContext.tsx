@@ -42,9 +42,12 @@ type AuthValue = {
   sessionExpired: boolean;
   /** Prefill for Complete Profile after a new Singpass sign-up. */
   singpassPrefill: { displayName: string } | null;
-  login: (phone: string, password: string) => Promise<void>;
-  register: (phone: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
+  /** Mock consent screen (mock backend). */
   loginWithSingpass: (identity: SingpassIdentity) => Promise<void>;
+  /** Mockpass bridge return (Supabase backend): tokens from /mockpass/callback. */
+  completeSingpass: (tokens: { accessToken: string; refreshToken: string }) => Promise<void>;
   logout: () => Promise<void>;
   setProfile: (p: UserProfile) => void;
   hasRole: (r: UserRole) => boolean;
@@ -132,11 +135,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionExpired,
       singpassPrefill,
       touch,
-      login: async (phone, password) => begin(await authService.login(phone, password)),
-      register: async (phone, password) => begin(await authService.register(phone, password)),
+      login: async (email, password) => begin(await authService.login(email, password)),
+      register: async (email, password) => begin(await authService.register(email, password)),
       loginWithSingpass: async (identity) => {
         const { session: s, isNew } = await authService.loginWithSingpass(identity);
         setSingpassPrefill(isNew ? { displayName: identity.name } : null);
+        begin(s);
+      },
+      completeSingpass: async (tokens) => {
+        const {
+          session: s,
+          isNew,
+          displayName,
+        } = await authService.completeSingpassRedirect(tokens);
+        setSingpassPrefill(isNew && displayName ? { displayName } : null);
         begin(s);
       },
       logout: () => endSession(false),
