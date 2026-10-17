@@ -73,6 +73,36 @@ export const communityText = {
   reportHistoryHint:
     'Your submitted reports and their review status. Reports remain here if the content is deleted.',
   reportStatuses: { open: 'Open', actioned: 'Action taken', dismissed: 'Dismissed' },
+  moderation: 'Admin moderation',
+  moderationAudit: 'Moderation audit log',
+  adminOnly: 'Only active admins can access moderation.',
+  allReports: 'All reports',
+  emptyModeration: 'No reports match this status.',
+  reviewReport: 'Review report',
+  reportUnavailable: 'This report is unavailable.',
+  currentContent: 'Current reported content',
+  alreadyRemoved: 'This content was already removed.',
+  deletedModerationContent: 'This content was deleted. You can dismiss the report with a reason.',
+  unsupportedModerationContent:
+    'Content review and removal currently support posts and comments. This report can still be dismissed.',
+  refreshReview: 'Refresh review',
+  moderationReason: 'Moderation reason',
+  moderationReasonHint: 'Visible to the reporter and recorded in the audit log.',
+  removeContent: 'Remove content',
+  resolveRemoved: 'Resolve as already removed',
+  dismissReport: 'Dismiss report',
+  confirmRemovalHint:
+    'Confirm removal and resolve this report? The decision will be recorded in the audit log.',
+  confirmDismissalHint:
+    'Dismiss this report and keep the content? The decision will be recorded in the audit log.',
+  confirmRemove: 'Confirm removal',
+  confirmDismiss: 'Confirm dismissal',
+  keepReviewing: 'Keep reviewing',
+  moderationError:
+    'Unable to save this decision. Your reason is still here. Refresh the review or retry.',
+  refreshAudit: 'Refresh audit log',
+  olderAudit: 'Load older audit entries',
+  emptyAudit: 'No moderation decisions have been recorded yet.',
 } as const;
 
 export function CommunityButton({

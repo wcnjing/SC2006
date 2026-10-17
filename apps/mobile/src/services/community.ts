@@ -47,3 +47,16 @@ export const submitReport: typeof api.submitReport = DEMO_MODE
 export const listMyReports: typeof api.listMyReports = DEMO_MODE
   ? (_client, options) => getDemoBackend().listMyReports(options)
   : api.listMyReports;
+
+export const listModerationReports: typeof api.listModerationReports = DEMO_MODE
+  ? (_client, options) => getDemoBackend().listModerationReports(options)
+  : api.listModerationReports;
+export const getModerationReport: typeof api.getModerationReport = DEMO_MODE
+  ? (_client, id, options) => getDemoBackend().getModerationReport(id, options)
+  : api.getModerationReport;
+export const reviewContentReport: typeof api.reviewContentReport = DEMO_MODE
+  ? (_client, id, action, reason) => getDemoBackend().reviewContentReport(id, action, reason)
+  : api.reviewContentReport;
+export const listModerationAudit: typeof api.listModerationAudit = DEMO_MODE
+  ? (_client, options) => getDemoBackend().listModerationAudit(options)
+  : api.listModerationAudit;

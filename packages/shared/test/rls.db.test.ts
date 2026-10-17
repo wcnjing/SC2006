@@ -29,6 +29,10 @@ import {
   setPostLiked,
   submitReport,
   listMyReports,
+  listModerationReports,
+  getModerationReport,
+  reviewContentReport,
+  listModerationAudit,
 } from '../src';
 
 // Connection details come from the running local stack (`supabase status`),
@@ -641,24 +645,20 @@ describe('P3 reports', () => {
       .update({ status: 'dismissed' })
       .eq('id', report.id)
       .select('id');
-    expect(edit.data).toEqual([]);
+    expect(edit.error?.code).toBe('42501');
     const deletion = await other.client.from('reports').delete().eq('id', report.id).select('id');
     expect(deletion.data).toEqual([]);
     await deletePost(resident.client, post.id);
     expect((await submitReport(other.client, input)).id).toBe(report.id);
-    const review = await admin.client
-      .from('reports')
-      .update({
-        status: 'actioned',
-        reviewed_by: admin.id,
-        reviewed_at: new Date().toISOString(),
-        resolution_note: 'Reviewed and removed',
-      })
-      .eq('id', report.id);
-    if (review.error) throw review.error;
+    await reviewContentReport(
+      admin.client,
+      report.id,
+      'dismiss',
+      'Content was deleted by the author',
+    );
     expect(
       (await listMyReports(other.client)).reports.find((row) => row.id === report.id),
-    ).toMatchObject({ status: 'actioned', resolution_note: 'Reviewed and removed' });
+    ).toMatchObject({ status: 'dismissed', resolution_note: 'Content was deleted by the author' });
   });
 
   it('rejects forged reporter/review metadata, blank reasons and nonexistent targets', async () => {
@@ -774,5 +774,188 @@ describe('P3 reports', () => {
         .reverse(),
     );
     expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('P3 admin moderation', () => {
+  async function fixture() {
+    const post = await createPost(resident.client, {
+      body: 'Moderation target',
+      neighbourhoodId: 1,
+    });
+    const report = await submitReport(other.client, {
+      targetType: 'post',
+      targetId: post.id,
+      reason: 'Spam',
+    });
+    return { post, report };
+  }
+  async function auditFor(reportId: string) {
+    const result = await service
+      .from('audit_log')
+      .select('*')
+      .contains('details', { report_id: reportId });
+    if (result.error) throw result.error;
+    return result.data;
+  }
+
+  it('atomically removes posts, resolves reports and audits the actor once across concurrent retries', async () => {
+    const { post, report } = await fixture();
+    expect((await getModerationReport(admin.client, report.id))?.content?.body).toBe(post.body);
+    const decisions = await Promise.all([
+      reviewContentReport(admin.client, report.id, 'remove', 'Advertising violation'),
+      reviewContentReport(admin.client, report.id, 'remove', 'Advertising violation'),
+    ]);
+    expect(
+      decisions.every((row) => row.status === 'actioned' && row.reviewed_by === admin.id),
+    ).toBe(true);
+    const audit = await auditFor(report.id);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      actor_id: admin.id,
+      action: 'remove_content',
+      target_type: 'post',
+      target_id: post.id,
+      details: {
+        reason: 'Advertising violation',
+        from: 'open',
+        to: 'actioned',
+        content_changed: true,
+      },
+    });
+    expect(
+      (await listMyReports(other.client)).reports.find((row) => row.id === report.id)?.status,
+    ).toBe('actioned');
+    expect(await getPost(resident.client, post.id)).toBeNull();
+    expect((await getModerationReport(admin.client, report.id))?.content).toMatchObject({
+      body: post.body,
+      isRemoved: true,
+    });
+    await expect(
+      reviewContentReport(admin.client, report.id, 'dismiss', 'Different decision'),
+    ).rejects.toMatchObject({ code: '40001' });
+    expect(await auditFor(report.id)).toHaveLength(1);
+  });
+
+  it('removes a comment independently and keeps the first removal reason across reports', async () => {
+    const { post } = await fixture();
+    const comment = await createComment(other.client, {
+      postId: post.id,
+      body: 'Moderated comment',
+    });
+    const first = await submitReport(resident.client, {
+      targetType: 'comment',
+      targetId: comment.id,
+      reason: 'Abuse',
+    });
+    const second = await submitReport(resident.client, {
+      targetType: 'comment',
+      targetId: comment.id,
+      reason: 'Another report',
+    });
+    await reviewContentReport(admin.client, first.id, 'remove', 'Original removal reason');
+    await reviewContentReport(admin.client, second.id, 'remove', 'Related report resolved');
+    expect((await listComments(resident.client, post.id)).comments).toEqual([]);
+    expect(await getPost(resident.client, post.id)).not.toBeNull();
+    expect((await getModerationReport(admin.client, second.id))?.content).toMatchObject({
+      isRemoved: true,
+      removedReason: 'Original removal reason',
+    });
+    expect((await auditFor(second.id))[0]!.details).toMatchObject({ content_changed: false });
+  });
+
+  it('allows one winner when two admins make conflicting decisions', async () => {
+    const { post, report } = await fixture();
+    const secondAdmin = await userWithRole('moderator-race', 'admin');
+    const results = await Promise.allSettled([
+      reviewContentReport(admin.client, report.id, 'remove', 'Remove decision'),
+      reviewContentReport(secondAdmin.client, report.id, 'dismiss', 'Dismiss decision'),
+    ]);
+    expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1);
+    const failed = results.find((row) => row.status === 'rejected');
+    expect(failed?.status === 'rejected' && failed.reason.code).toBe('40001');
+    expect(await auditFor(report.id)).toHaveLength(1);
+    const current = await getModerationReport(admin.client, report.id);
+    expect(current?.content?.isRemoved).toBe(current?.report.status === 'actioned');
+    expect(current?.content?.id).toBe(post.id);
+  });
+
+  it('rejects unauthorised RPCs, direct review updates, protected content and fake audit entries', async () => {
+    const { post, report } = await fixture();
+    const args = { p_report_id: report.id, p_action: 'remove', p_reason: 'Reason' };
+    expect((await resident.client.rpc('review_content_report', args)).error?.code).toBe('42501');
+    expect((await newClient().rpc('review_content_report', args)).error?.code).toBe('42501');
+    await expect(listModerationReports(resident.client)).rejects.toMatchObject({ code: '42501' });
+    await expect(listModerationAudit(resident.client)).rejects.toMatchObject({ code: '42501' });
+    expect(
+      (await admin.client.from('reports').update({ status: 'dismissed' }).eq('id', report.id)).error
+        ?.code,
+    ).toBe('42501');
+    expect(
+      (await admin.client.from('posts').update({ is_removed: true }).eq('id', post.id)).error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await admin.client
+          .from('audit_log')
+          .insert({ action: 'forged', target_type: 'post', target_id: post.id })
+      ).error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await admin.client.rpc('write_audit_log', {
+          p_action: 'forged',
+          p_target_type: 'post',
+          p_target_id: post.id,
+        })
+      ).error?.code,
+    ).toBe('42501');
+    const suspended = await userWithRole('moderator-suspended', 'admin');
+    await setUserStatus(admin.client, suspended.id, 'suspended', 'Moderation test');
+    expect((await suspended.client.rpc('review_content_report', args)).error?.code).toBe('42501');
+    expect(await auditFor(report.id)).toEqual([]);
+    expect((await getModerationReport(admin.client, report.id))?.report.status).toBe('open');
+  });
+
+  it('does not partially change state after invalid or missing-target decisions, and audits dismissal', async () => {
+    const { post, report } = await fixture();
+    for (const p_reason of [' \n\t ', 'x'.repeat(1001)])
+      expect(
+        (
+          await admin.client.rpc('review_content_report', {
+            p_report_id: report.id,
+            p_action: 'remove',
+            p_reason,
+          })
+        ).error?.code,
+      ).toBe('22023');
+    expect(
+      (
+        await admin.client.rpc('review_content_report', {
+          p_report_id: report.id,
+          p_action: 'restore',
+          p_reason: 'Reason',
+        })
+      ).error?.code,
+    ).toBe('22023');
+    await deletePost(resident.client, post.id);
+    await expect(
+      reviewContentReport(admin.client, report.id, 'remove', 'Missing target'),
+    ).rejects.toMatchObject({ code: 'P0002' });
+    expect((await getModerationReport(admin.client, report.id))?.report.status).toBe('open');
+    expect(await auditFor(report.id)).toEqual([]);
+    await reviewContentReport(admin.client, report.id, 'dismiss', 'Content was deleted');
+    const audit = await auditFor(report.id);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: 'dismiss_report',
+      target_type: 'report',
+      target_id: report.id,
+    });
+    expect(
+      (await listModerationAudit(admin.client)).entries.some((entry) => entry.id === audit[0]!.id),
+    ).toBe(true);
+    const page = await listModerationReports(admin.client, { status: 'dismissed', limit: 50 });
+    expect(page.reports.some((row) => row.id === report.id)).toBe(true);
   });
 });

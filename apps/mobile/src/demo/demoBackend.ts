@@ -23,6 +23,17 @@ import {
   type SubmittedReport,
   type MyReportListOptions,
   type MyReportPage,
+  can,
+  validateModerationReason,
+  type Report,
+  type AuditLogEntry,
+  type ModerationAction,
+  type ModerationListOptions,
+  type ModerationPage,
+  type ModerationReview,
+  type ModerationContent,
+  type ModerationAuditOptions,
+  type ModerationAuditPage,
 } from '@communitylink/shared';
 
 export const DEMO_STORAGE_KEY = 'communitylink-p3-demo-v1';
@@ -33,7 +44,8 @@ type DemoState = {
   posts: Post[];
   comments: PostComment[];
   likes: PostLike[];
-  reports: SubmittedReport[];
+  reports: Report[];
+  audit: AuditLogEntry[];
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -73,6 +85,13 @@ export const DEMO_ACCOUNTS = [
     email: 'mei@demo.local',
     profile: profile('22222222-2222-4222-8222-222222222222', 'Auntie Mei'),
   },
+  {
+    email: 'admin@demo.local',
+    profile: {
+      ...profile('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Demo Admin'),
+      role: 'admin' as const,
+    },
+  },
 ];
 
 function seed(): DemoState {
@@ -83,6 +102,7 @@ function seed(): DemoState {
     comments: [],
     likes: [],
     reports: [],
+    audit: [],
     posts: Array.from({ length: 27 }, (_, index) => {
       const createdAt = new Date(now - index * 60000).toISOString();
       return {
@@ -126,6 +146,7 @@ export function createDemoBackend(storage: DemoStorage) {
         (state.comments !== undefined && !Array.isArray(state.comments)) ||
         (state.likes !== undefined && !Array.isArray(state.likes)) ||
         (state.reports !== undefined && !Array.isArray(state.reports)) ||
+        (state.audit !== undefined && !Array.isArray(state.audit)) ||
         (state.userId !== null &&
           !DEMO_ACCOUNTS.some((account) => account.profile.id === state.userId))
       )
@@ -135,9 +156,19 @@ export function createDemoBackend(storage: DemoStorage) {
         ...state,
         comments: state.comments ?? [],
         likes: state.likes ?? [],
-        reports: state.reports ?? [],
+        reports: (state.reports ?? []).map((row) => ({
+          ...row,
+          reviewed_by: row.reviewed_by ?? null,
+        })),
+        audit: state.audit ?? [],
       };
-      if (state.comments === undefined || state.likes === undefined || state.reports === undefined)
+      if (
+        state.comments === undefined ||
+        state.likes === undefined ||
+        state.reports === undefined ||
+        state.audit === undefined ||
+        state.reports.some((row) => row.reviewed_by === undefined)
+      )
         write(upgraded);
       return upgraded;
     } catch {
@@ -151,6 +182,56 @@ export function createDemoBackend(storage: DemoStorage) {
     const current = DEMO_ACCOUNTS.find((account) => account.profile.id === state.userId)?.profile;
     if (!current) throw new ApiError('Choose a demo resident first.', 'unauthenticated');
     return current;
+  }
+  function requireAdmin(state: DemoState): Profile {
+    const current = requireProfile(state);
+    if (!can(current, 'report:review'))
+      throw new ApiError('Only active admins can moderate reports.', '42501');
+    return current;
+  }
+  function submitted(report: Report): SubmittedReport {
+    const { reviewed_by: _reviewer, ...row } = report;
+    return row;
+  }
+  function moderationContent(state: DemoState, report: Report): ModerationContent | null {
+    if (report.target_type === 'post') {
+      const post = state.posts.find((row) => row.id === report.target_id);
+      return post
+        ? {
+            id: post.id,
+            type: 'post',
+            authorId: post.author_id,
+            author: hydrate(post).author,
+            body: post.body,
+            imageUrl: post.image_url,
+            createdAt: post.created_at,
+            isRemoved: post.is_removed,
+            removedReason: post.removed_reason,
+            parentPost: null,
+          }
+        : null;
+    }
+    if (report.target_type === 'comment') {
+      const comment = state.comments.find((row) => row.id === report.target_id);
+      const parent = state.posts.find((row) => row.id === comment?.post_id);
+      return comment
+        ? {
+            id: comment.id,
+            type: 'comment',
+            authorId: comment.author_id,
+            author: hydrateComment(comment).author,
+            body: comment.body,
+            imageUrl: null,
+            createdAt: comment.created_at,
+            isRemoved: comment.is_removed,
+            removedReason: comment.removed_reason,
+            parentPost: parent
+              ? { id: parent.id, body: parent.body, is_removed: parent.is_removed }
+              : null,
+          }
+        : null;
+    }
+    return null;
   }
   function hydrate(post: Post): CommunityPost {
     const author = DEMO_ACCOUNTS.find((account) => account.profile.id === post.author_id)?.profile;
@@ -440,7 +521,7 @@ export function createDemoBackend(storage: DemoStorage) {
             'This report was already submitted with different details. Check My reports before sending another.',
             'conflict',
           );
-        return { ...existing };
+        return submitted(existing);
       }
       if (input.targetType === 'post') visiblePost(state, input.targetId);
       else {
@@ -448,7 +529,7 @@ export function createDemoBackend(storage: DemoStorage) {
         if (!comment) throw new ApiError('This comment is unavailable.', 'not_found');
         visiblePost(state, comment.post_id);
       }
-      const report: SubmittedReport = {
+      const report: Report = {
         id: input.requestId ?? (await import('expo-crypto')).randomUUID(),
         reporter_id: reporter.id,
         target_type: input.targetType,
@@ -458,10 +539,11 @@ export function createDemoBackend(storage: DemoStorage) {
         status: 'open',
         created_at: new Date().toISOString(),
         reviewed_at: null,
+        reviewed_by: null,
         resolution_note: null,
       };
       write({ ...state, reports: [...state.reports, report] });
-      return { ...report };
+      return submitted(report);
     },
     async listMyReports({
       limit = 20,
@@ -491,13 +573,159 @@ export function createDemoBackend(storage: DemoStorage) {
             report.created_at < cursor.createdAt ||
             (report.created_at === cursor.createdAt && report.id < cursor.id),
         );
-      const reports = rows.slice(0, limit).map((row) => ({ ...row }));
+      const reports = rows.slice(0, limit).map(submitted);
       const oldest = reports.at(-1);
       return {
         reports,
         nextCursor:
           rows.length > limit && oldest ? { createdAt: oldest.created_at, id: oldest.id } : null,
       };
+    },
+    async listModerationReports({
+      status = 'open',
+      limit = 20,
+      cursor,
+      signal,
+    }: ModerationListOptions = {}): Promise<ModerationPage> {
+      signal?.throwIfAborted();
+      const state = read();
+      requireAdmin(state);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        !['all', 'open', 'actioned', 'dismissed'].includes(status)
+      )
+        throw new ApiError('Invalid report filters.', 'validation');
+      if (
+        cursor &&
+        (!UUID.test(cursor.id) ||
+          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(
+            cursor.createdAt,
+          ) ||
+          !Number.isFinite(Date.parse(cursor.createdAt)))
+      )
+        throw new ApiError('Invalid report cursor.', 'validation');
+      const rows = state.reports
+        .filter((row) => status === 'all' || row.status === status)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+        .filter(
+          (row) =>
+            !cursor ||
+            row.created_at < cursor.createdAt ||
+            (row.created_at === cursor.createdAt && row.id < cursor.id),
+        );
+      const reports = rows.slice(0, limit).map((row) => ({ ...row }));
+      const last = reports.at(-1);
+      return {
+        reports,
+        nextCursor:
+          rows.length > limit && last ? { createdAt: last.created_at, id: last.id } : null,
+      };
+    },
+    async getModerationReport(
+      id: string,
+      { signal }: { signal?: AbortSignal } = {},
+    ): Promise<ModerationReview | null> {
+      signal?.throwIfAborted();
+      const state = read();
+      requireAdmin(state);
+      if (!UUID.test(id)) throw new ApiError('Invalid report ID.', 'validation');
+      const report = state.reports.find((row) => row.id === id);
+      return report ? { report: { ...report }, content: moderationContent(state, report) } : null;
+    },
+    async reviewContentReport(
+      reportId: string,
+      action: ModerationAction,
+      reason: string,
+    ): Promise<Report> {
+      const state = read();
+      const admin = requireAdmin(state);
+      if (!UUID.test(reportId) || (action !== 'remove' && action !== 'dismiss'))
+        throw new ApiError('Invalid moderation decision.', 'validation');
+      const invalid = validateModerationReason(reason);
+      if (invalid) throw new ApiError(invalid, 'validation');
+      const report = state.reports.find((row) => row.id === reportId);
+      if (!report) throw new ApiError('Report not found.', 'P0002');
+      const status = action === 'remove' ? 'actioned' : 'dismissed';
+      const normalized = reason.trim();
+      if (report.status !== 'open') {
+        if (
+          report.status === status &&
+          report.reviewed_by === admin.id &&
+          report.resolution_note === normalized
+        )
+          return { ...report };
+        throw new ApiError('This report was already reviewed. Refresh before continuing.', '40001');
+      }
+      let changed = false;
+      if (action === 'remove') {
+        if (report.target_type !== 'post' && report.target_type !== 'comment')
+          throw new ApiError('Removal supports posts and comments only.', 'validation');
+        const target = (report.target_type === 'post' ? state.posts : state.comments).find(
+          (row) => row.id === report.target_id,
+        );
+        if (!target)
+          throw new ApiError(
+            'The reported content was deleted. Dismiss the report with a reason.',
+            'P0002',
+          );
+        changed = !target.is_removed;
+        if (changed) {
+          target.is_removed = true;
+          target.removed_reason = normalized;
+        }
+        if (report.target_type === 'post' && changed)
+          (target as Post).updated_at = new Date().toISOString();
+      }
+      const now = new Date().toISOString();
+      Object.assign(report, {
+        status,
+        reviewed_by: admin.id,
+        reviewed_at: now,
+        resolution_note: normalized,
+      });
+      state.audit.push({
+        id: Math.max(0, ...state.audit.map((entry) => entry.id)) + 1,
+        actor_id: admin.id,
+        action: action === 'remove' ? 'remove_content' : 'dismiss_report',
+        target_type: action === 'remove' ? report.target_type : 'report',
+        target_id: action === 'remove' ? report.target_id : report.id,
+        created_at: now,
+        details: {
+          report_id: report.id,
+          reason: normalized,
+          target_type: report.target_type,
+          target_id: report.target_id,
+          from: 'open',
+          to: status,
+          content_changed: changed,
+        },
+      });
+      // One storage write commits content, report and audit together in this demo.
+      write(state);
+      return { ...report };
+    },
+    async listModerationAudit({
+      limit = 20,
+      cursor,
+      signal,
+    }: ModerationAuditOptions = {}): Promise<ModerationAuditPage> {
+      signal?.throwIfAborted();
+      const state = read();
+      requireAdmin(state);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        (cursor != null && (!Number.isSafeInteger(cursor) || cursor < 1))
+      )
+        throw new ApiError('Invalid audit page.', 'validation');
+      const rows = state.audit
+        .filter((row) => cursor == null || row.id < cursor)
+        .sort((a, b) => b.id - a.id);
+      const entries = rows.slice(0, limit).map((row) => ({ ...row }));
+      return { entries, nextCursor: rows.length > limit ? entries.at(-1)!.id : null };
     },
     async setPostLiked(postId: string, liked: boolean): Promise<PostLikeState> {
       const state = read();

@@ -9,6 +9,7 @@ import {
 } from '../community/communityUi';
 import { colors, spacing } from '../theme/tokens';
 import { DEMO_ACCOUNTS, getDemoBackend } from './demoBackend';
+import { can } from '@communitylink/shared';
 
 export function DemoBanner() {
   const { profile, signOut } = useAuth();
@@ -96,6 +97,13 @@ export function DemoHomeScreen() {
         Open the community feed, choose a neighbourhood and publish your first post.
       </Text>
       <CommunityButton label="Open community feed" onPress={() => router.push('/community')} />
+      {can(profile, 'report:review') && (
+        <CommunityButton
+          label="Admin moderation"
+          onPress={() => router.push('/admin/moderation')}
+          secondary
+        />
+      )}
       <Text style={styles.muted}>
         Try switching residents to check which posts you can edit. Bedok starts with an empty feed.
       </Text>

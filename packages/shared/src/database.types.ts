@@ -700,6 +700,10 @@ export type Database = {
         Returns: boolean;
       };
       is_organiser: { Args: never; Returns: boolean };
+      review_content_report: {
+        Args: { p_report_id: string; p_action: string; p_reason: string };
+        Returns: Database['public']['Tables']['reports']['Row'][];
+      };
       set_user_role: {
         Args: {
           new_role: Database['public']['Enums']['user_role'];

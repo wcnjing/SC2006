@@ -21,6 +21,9 @@ function AuthenticatedRoutes() {
       <Stack.Screen name="index" options={{ title: 'CommunityLink' }} />
       <Stack.Screen name="community" options={{ title: 'Community' }} />
       <Stack.Screen name="reports" options={{ title: 'My reports' }} />
+      <Stack.Screen name="admin/moderation/index" options={{ title: 'Admin moderation' }} />
+      <Stack.Screen name="admin/moderation/[id]" options={{ title: 'Review report' }} />
+      <Stack.Screen name="admin/audit" options={{ title: 'Moderation audit log' }} />
       <Stack.Screen name="post/create" options={{ title: 'Create post' }} />
       <Stack.Screen name="post/[id]/index" options={{ title: 'Post' }} />
       <Stack.Screen name="post/[id]/edit" options={{ title: 'Edit post' }} />

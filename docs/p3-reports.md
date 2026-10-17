@@ -20,7 +20,7 @@ the controls/layout while retaining the shared API and behaviour.
 The demo is local fixture storage, not proof of real database permissions.
 Existing demo posts, comments, likes and sessions survive the storage upgrade.
 **Reset demo data** also clears reports. Demo reports start as **Open**; real
-review outcomes come from the future admin moderation flow.
+review outcomes come from the [admin moderation flow](p3-moderation.md).
 
 ## Shared API
 
@@ -64,7 +64,8 @@ and comments. No enum, table-column or generated-type changes are needed.
 
 Apply the migration locally or through P1's migration/PR workflow before relying
 on the additional protections. This increment does not deploy it to the shared
-project. Admin queue/removal/audit and notification delivery remain separate work.
+project. The [admin queue/removal/audit](p3-moderation.md) is implemented in the
+next migration. Notification delivery remains separate work.
 
 ## Verification
 

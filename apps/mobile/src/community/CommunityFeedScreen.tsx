@@ -14,6 +14,7 @@ import {
 } from './communityUi';
 import { useCommunityQuery } from './useCommunityQuery';
 import { usePostFeed } from './usePostFeed';
+import { can } from '@communitylink/shared';
 
 const loadNeighbourhoods = () => listNeighbourhoods(supabase);
 
@@ -75,6 +76,13 @@ export function CommunityFeedScreen() {
             onPress={() => router.push('/reports')}
             secondary
           />
+          {can(profile, 'report:review') && (
+            <CommunityButton
+              label={text.moderation}
+              onPress={() => router.push('/admin/moderation')}
+              secondary
+            />
+          )}
         </View>
       }
       ListEmptyComponent={

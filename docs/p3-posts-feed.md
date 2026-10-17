@@ -121,8 +121,8 @@ changes are needed. Apply the migrations before relying on these protections.
 Remaining FR 7 work: categories, announcement permissions/filtering, device image
 upload and multiple images need agreed schema/storage additions.
 [Post/comment reports and personal history](p3-reports.md) are implemented in
-the next increment. Connections, messaging, blocking screens and moderation
-remain separate P3 work.
+the next increment. [Admin moderation and audit](p3-moderation.md) are also
+implemented. Connections, messaging and blocking screens remain separate P3 work.
 
 ## Verification
 

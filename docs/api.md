@@ -90,7 +90,7 @@ Clients can only `UPDATE` the columns granted in `*_rls_policies.sql`. To change
 ## Open items for each owner
 
 - **P2:** enforce `capacity` when joining (trigger or RPC). Add the recommendation query/RPC. Add dataset import with `source = 'dataset'` and `external_id`.
-- **P3:** `admin_remove_content(target_type, target_id, reason)` function, following the pattern above. When blocking, delete any connection between the two users (trigger on `blocks`). Report → admin queue screens.
+- **P3:** when blocking, delete any connection between the two users (trigger on `blocks`). Reporting and the audited admin moderation queue are implemented below.
 - **P4:** `notify(user_id, type, payload)` as a `security definer` function, called from triggers (activity changed/cancelled, connection request, new DM) so clients can't spam notifications.
 - **P1:** real Singpass (Week 10) sets `profiles.singpass_verified`.
 
@@ -117,6 +117,19 @@ supports duplicate-safe retries.
 history, including review status and any resolution note. It explicitly filters
 by the current reporter even for admins. Submissions are immutable to reporters.
 See [P3 reports](p3-reports.md) for routes, migration requirements and verification.
+
+## Admin moderation (P3)
+
+`listModerationReports` lists the admin queue by status; `getModerationReport`
+loads the report and current post/comment, including removed content.
+`reviewContentReport(client, reportId, 'remove' | 'dismiss', reason)` calls
+`review_content_report`, which checks active-admin access and atomically updates
+content/report status and writes an audit entry. Direct report review updates
+are revoked by the moderation migration. `listModerationAudit` exposes paginated
+moderation decisions; P1's `listAuditLog` still exposes the full system log.
+
+See [P3 admin moderation](p3-moderation.md) for routes, migration, retry/conflict
+semantics and verification. Moderation reasons are visible in reporters' histories.
 
 ## Errors
 
