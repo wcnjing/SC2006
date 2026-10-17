@@ -70,6 +70,11 @@ export function CommunityFeedScreen() {
             disabled={feed.loading || !neighbourhoodId}
             secondary
           />
+          <CommunityButton
+            label={text.myReports}
+            onPress={() => router.push('/reports')}
+            secondary
+          />
         </View>
       }
       ListEmptyComponent={

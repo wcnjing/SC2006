@@ -25,6 +25,7 @@ import {
 } from './communityUi';
 import { useCommentThread } from './useCommentThread';
 import { useCommunityQuery } from './useCommunityQuery';
+import { ReportForm } from './ReportForm';
 
 function message(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
@@ -143,6 +144,9 @@ function CommentRow({
             />
           )}
         </>
+      )}
+      {!editing && (
+        <ReportForm targetType="comment" targetId={comment.id} disabled={disabled || saving} />
       )}
       {error && <CommunityError>{error}</CommunityError>}
     </View>

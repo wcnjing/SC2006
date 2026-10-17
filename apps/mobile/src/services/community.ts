@@ -40,3 +40,10 @@ export const getPostLikeState: typeof api.getPostLikeState = DEMO_MODE
 export const setPostLiked: typeof api.setPostLiked = DEMO_MODE
   ? (_client, id, liked) => getDemoBackend().setPostLiked(id, liked)
   : api.setPostLiked;
+
+export const submitReport: typeof api.submitReport = DEMO_MODE
+  ? (_client, input) => getDemoBackend().submitReport(input)
+  : api.submitReport;
+export const listMyReports: typeof api.listMyReports = DEMO_MODE
+  ? (_client, options) => getDemoBackend().listMyReports(options)
+  : api.listMyReports;

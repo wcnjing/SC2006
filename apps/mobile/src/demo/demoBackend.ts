@@ -18,6 +18,11 @@ import {
   type PostFeedPage,
   type Profile,
   type UpdatePostInput,
+  validateReportContent,
+  type SubmitReportInput,
+  type SubmittedReport,
+  type MyReportListOptions,
+  type MyReportPage,
 } from '@communitylink/shared';
 
 export const DEMO_STORAGE_KEY = 'communitylink-p3-demo-v1';
@@ -28,6 +33,7 @@ type DemoState = {
   posts: Post[];
   comments: PostComment[];
   likes: PostLike[];
+  reports: SubmittedReport[];
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -76,6 +82,7 @@ function seed(): DemoState {
     userId: null,
     comments: [],
     likes: [],
+    reports: [],
     posts: Array.from({ length: 27 }, (_, index) => {
       const createdAt = new Date(now - index * 60000).toISOString();
       return {
@@ -118,13 +125,20 @@ export function createDemoBackend(storage: DemoStorage) {
         !Array.isArray(state.posts) ||
         (state.comments !== undefined && !Array.isArray(state.comments)) ||
         (state.likes !== undefined && !Array.isArray(state.likes)) ||
+        (state.reports !== undefined && !Array.isArray(state.reports)) ||
         (state.userId !== null &&
           !DEMO_ACCOUNTS.some((account) => account.profile.id === state.userId))
       )
         throw new Error();
       // Upgrade existing demo data without discarding the user's posts/session.
-      const upgraded = { ...state, comments: state.comments ?? [], likes: state.likes ?? [] };
-      if (state.comments === undefined || state.likes === undefined) write(upgraded);
+      const upgraded = {
+        ...state,
+        comments: state.comments ?? [],
+        likes: state.likes ?? [],
+        reports: state.reports ?? [],
+      };
+      if (state.comments === undefined || state.likes === undefined || state.reports === undefined)
+        write(upgraded);
       return upgraded;
     } catch {
       throw new ApiError(
@@ -398,6 +412,92 @@ export function createDemoBackend(storage: DemoStorage) {
     ): Promise<PostLikeState> {
       signal?.throwIfAborted();
       return likeState(read(), postId);
+    },
+    async submitReport(input: SubmitReportInput): Promise<SubmittedReport> {
+      const state = read();
+      const reporter = requireProfile(state);
+      if (input.targetType !== 'post' && input.targetType !== 'comment')
+        throw new ApiError('You can report a post or comment here.', 'validation');
+      if (
+        !UUID.test(input.targetId) ||
+        (input.requestId !== undefined && !UUID.test(input.requestId))
+      )
+        throw new ApiError('Invalid report or content ID.', 'validation');
+      const invalid = validateReportContent(input.reason, input.details);
+      if (invalid) throw new ApiError(invalid, 'validation');
+      const reason = input.reason.trim();
+      const details = input.details?.trim() || null;
+      const existing = state.reports.find((report) => report.id === input.requestId);
+      if (existing) {
+        if (
+          existing.reporter_id !== reporter.id ||
+          existing.target_type !== input.targetType ||
+          existing.target_id !== input.targetId ||
+          existing.reason !== reason ||
+          existing.details !== details
+        )
+          throw new ApiError(
+            'This report was already submitted with different details. Check My reports before sending another.',
+            'conflict',
+          );
+        return { ...existing };
+      }
+      if (input.targetType === 'post') visiblePost(state, input.targetId);
+      else {
+        const comment = state.comments.find((row) => row.id === input.targetId && !row.is_removed);
+        if (!comment) throw new ApiError('This comment is unavailable.', 'not_found');
+        visiblePost(state, comment.post_id);
+      }
+      const report: SubmittedReport = {
+        id: input.requestId ?? (await import('expo-crypto')).randomUUID(),
+        reporter_id: reporter.id,
+        target_type: input.targetType,
+        target_id: input.targetId,
+        reason,
+        details,
+        status: 'open',
+        created_at: new Date().toISOString(),
+        reviewed_at: null,
+        resolution_note: null,
+      };
+      write({ ...state, reports: [...state.reports, report] });
+      return { ...report };
+    },
+    async listMyReports({
+      limit = 20,
+      cursor,
+      signal,
+    }: MyReportListOptions = {}): Promise<MyReportPage> {
+      signal?.throwIfAborted();
+      const state = read();
+      const reporter = requireProfile(state);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+        throw new ApiError('Report page size must be between 1 and 50.', 'validation');
+      if (
+        cursor &&
+        (!UUID.test(cursor.id) ||
+          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(
+            cursor.createdAt,
+          ) ||
+          !Number.isFinite(Date.parse(cursor.createdAt)))
+      )
+        throw new ApiError('Invalid report cursor.', 'validation');
+      const rows = state.reports
+        .filter((report) => report.reporter_id === reporter.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+        .filter(
+          (report) =>
+            !cursor ||
+            report.created_at < cursor.createdAt ||
+            (report.created_at === cursor.createdAt && report.id < cursor.id),
+        );
+      const reports = rows.slice(0, limit).map((row) => ({ ...row }));
+      const oldest = reports.at(-1);
+      return {
+        reports,
+        nextCursor:
+          rows.length > limit && oldest ? { createdAt: oldest.created_at, id: oldest.id } : null,
+      };
     },
     async setPostLiked(postId: string, liked: boolean): Promise<PostLikeState> {
       const state = read();

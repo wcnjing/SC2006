@@ -9,3 +9,4 @@ export * from './api/profile';
 export * from './api/admin';
 export * from './api/posts';
 export * from './api/postInteractions';
+export * from './api/reports';

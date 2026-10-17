@@ -50,12 +50,15 @@ like/unlike it, add comments, and edit or delete your own comments. Switch to
 **Auntie Mei** to check author controls and likes from separate residents.
 No Supabase project or `.env` is needed. The visible demo banner identifies local
 data; posts, comments and likes persist in that browser.
+Use **Report post** / **Report comment** to submit a reason, then **My reports**
+to view your own submissions and status. Reports also persist in that browser.
 **Reset demo data** on the resident-selection screen restores the sample posts.
 
 This uses the same post screens with a local data service. Real database/RLS
 verification still needs Supabase. Normal `npm run mobile` / `npm run web
 --workspace apps/mobile` use Supabase unless demo mode is explicitly enabled.
 See [P3 posts and feed](docs/p3-posts-feed.md) for details.
+See [P3 reports](docs/p3-reports.md) for reporting APIs, screens and database protections.
 
 ## Using the shared package
 

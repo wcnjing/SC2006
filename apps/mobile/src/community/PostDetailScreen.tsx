@@ -14,6 +14,7 @@ import {
 } from './communityUi';
 import { useCommunityQuery } from './useCommunityQuery';
 import { PostInteractions } from './PostInteractions';
+import { ReportForm } from './ReportForm';
 
 export function PostDetailScreen({ id }: { id: string }) {
   const { profile } = useAuth();
@@ -93,6 +94,12 @@ export function PostDetailScreen({ id }: { id: string }) {
               {deleteError && <CommunityError>{deleteError}</CommunityError>}
             </View>
           )}
+          <ReportForm
+            key={`report-${post.id}`}
+            targetType="post"
+            targetId={post.id}
+            disabled={deleting}
+          />
           <PostInteractions key={post.id} postId={post.id} disabled={deleting} />
         </>
       )}

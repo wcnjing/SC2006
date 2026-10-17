@@ -106,6 +106,18 @@ client first.
 See [P3 posts and feed](p3-posts-feed.md) for function signatures, routes,
 database protections, verification and integration with the other branches.
 
+## Reports (P3)
+
+`submitReport(client, { targetType, targetId, reason, details?, requestId? })`
+submits a post/comment report using the current reporter's session. Reasons are
+required (maximum 100 characters); optional details allow 1,000. `requestId`
+supports duplicate-safe retries.
+
+`listMyReports(client, { limit?, cursor?, signal? }?)` returns paginated personal
+history, including review status and any resolution note. It explicitly filters
+by the current reporter even for admins. Submissions are immutable to reporters.
+See [P3 reports](p3-reports.md) for routes, migration requirements and verification.
+
 ## Errors
 
 API functions throw `ApiError` with a readable `message` and an optional `code`:

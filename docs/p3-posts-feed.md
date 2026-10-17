@@ -119,8 +119,10 @@ changes are needed. Apply the migrations before relying on these protections.
   shared auth, not her separate mock backend.
 
 Remaining FR 7 work: categories, announcement permissions/filtering, device image
-upload and multiple images need agreed schema/storage additions. Reports,
-connections, messaging, blocking screens and moderation remain separate P3 work.
+upload and multiple images need agreed schema/storage additions.
+[Post/comment reports and personal history](p3-reports.md) are implemented in
+the next increment. Connections, messaging, blocking screens and moderation
+remain separate P3 work.
 
 ## Verification
 

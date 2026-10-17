@@ -72,7 +72,8 @@ export function DemoWelcomeScreen() {
       ))}
       {error && <CommunityError>{error}</CommunityError>}
       <Text style={styles.muted}>
-        Demo posts persist after refresh. Resetting clears posts you made here.
+        Demo posts, comments, likes and reports persist after refresh. Resetting clears this demo
+        data.
       </Text>
       <CommunityButton
         label="Reset demo data"

@@ -54,6 +54,25 @@ export const communityText = {
   unlike: 'Unlike post',
   likeError: 'Unable to update your like. Please try again.',
   retryLikes: 'Retry likes',
+  reportPost: 'Report post',
+  reportComment: 'Report comment',
+  reportReason: 'Report reason',
+  reportDetails: 'Additional details (optional)',
+  submitReport: 'Submit report',
+  submittingReport: 'Submitting…',
+  cancelReport: 'Cancel report',
+  reportSent: 'Report submitted. You can track it in My reports.',
+  reportError:
+    'Unable to submit your report. Your reason and details are still here. Please try again.',
+  reportHint:
+    'Tell us why this content should be reviewed. Reporting sends it for review; it does not remove it immediately.',
+  myReports: 'My reports',
+  refreshReports: 'Refresh reports',
+  olderReports: 'Load older reports',
+  emptyReports: 'You have not submitted any reports yet.',
+  reportHistoryHint:
+    'Your submitted reports and their review status. Reports remain here if the content is deleted.',
+  reportStatuses: { open: 'Open', actioned: 'Action taken', dismissed: 'Dismissed' },
 } as const;
 
 export function CommunityButton({
