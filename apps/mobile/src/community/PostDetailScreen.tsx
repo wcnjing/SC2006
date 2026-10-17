@@ -13,6 +13,7 @@ import {
   PostImage,
 } from './communityUi';
 import { useCommunityQuery } from './useCommunityQuery';
+import { PostInteractions } from './PostInteractions';
 
 export function PostDetailScreen({ id }: { id: string }) {
   const { profile } = useAuth();
@@ -92,6 +93,7 @@ export function PostDetailScreen({ id }: { id: string }) {
               {deleteError && <CommunityError>{deleteError}</CommunityError>}
             </View>
           )}
+          <PostInteractions key={post.id} postId={post.id} disabled={deleting} />
         </>
       )}
     </ScrollView>

@@ -96,7 +96,13 @@ Clients can only `UPDATE` the columns granted in `*_rls_policies.sql`. To change
 
 ## Posts and feed (P3)
 
-Shared post APIs now implement the Latest neighbourhood feed and author CRUD.
+Shared post APIs implement the Latest neighbourhood feed, author CRUD, paginated
+comments and like/unlike. Comment APIs are `listComments`, `createComment`,
+`updateComment` and `deleteComment`. `getPostLikeState` returns the count and
+current resident's like state; `setPostLiked` sets an explicit desired state,
+so retrying does not toggle or duplicate a like. Every function takes the typed
+client first.
+
 See [P3 posts and feed](p3-posts-feed.md) for function signatures, routes,
 database protections, verification and integration with the other branches.
 

@@ -45,9 +45,11 @@ npm run web:demo
 ```
 
 Select **Continue as Yining**, then **Open community feed**. You can create, edit
-and delete posts, switch neighbourhoods, load older posts, and switch to **Auntie
-Mei** to check the author controls. No Supabase project or `.env` is needed.
-The visible demo banner identifies local data; posts persist in that browser.
+and delete posts, switch neighbourhoods and load older posts. Open any post to
+like/unlike it, add comments, and edit or delete your own comments. Switch to
+**Auntie Mei** to check author controls and likes from separate residents.
+No Supabase project or `.env` is needed. The visible demo banner identifies local
+data; posts, comments and likes persist in that browser.
 **Reset demo data** on the resident-selection screen restores the sample posts.
 
 This uses the same post screens with a local data service. Real database/RLS

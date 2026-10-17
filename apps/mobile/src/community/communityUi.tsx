@@ -34,6 +34,26 @@ export const communityText = {
   deleting: 'Deleting…',
   deleteError: 'Unable to delete your post. Please try again.',
   imageError: 'The attached image could not be displayed.',
+  comments: 'Comments',
+  commentPlaceholder: 'Join the conversation…',
+  commentLabel: 'Your comment',
+  sendComment: 'Post comment',
+  sendingComment: 'Posting…',
+  emptyComments: 'No comments yet. Start the conversation.',
+  olderComments: 'Load older comments',
+  refreshComments: 'Refresh comments',
+  editComment: 'Edit comment',
+  deleteComment: 'Delete comment',
+  confirmDeleteComment: 'Permanently delete this comment?',
+  keepComment: 'Keep comment',
+  deleteCommentAction: 'Delete comment permanently',
+  cancelEdit: 'Cancel edit',
+  commentPosted: 'Comment posted.',
+  commentError: 'Unable to save your comment. Your draft is still here. Please try again.',
+  like: 'Like post',
+  unlike: 'Unlike post',
+  likeError: 'Unable to update your like. Please try again.',
+  retryLikes: 'Retry likes',
 } as const;
 
 export function CommunityButton({
@@ -41,16 +61,18 @@ export function CommunityButton({
   onPress,
   disabled = false,
   secondary = false,
+  selected,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
+  selected?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [

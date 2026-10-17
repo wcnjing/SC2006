@@ -21,6 +21,12 @@ import {
   listPosts,
   updatePost,
   deletePost,
+  createComment,
+  listComments,
+  updateComment,
+  deleteComment,
+  getPostLikeState,
+  setPostLiked,
 } from '../src';
 
 // Connection details come from the running local stack (`supabase status`),
@@ -419,5 +425,175 @@ describe('P3 posts and neighbourhood feeds', () => {
       await setUserStatus(admin.client, other.id, 'active');
     }
     await deletePost(other.client, post.id);
+  });
+});
+
+describe('P3 comments and likes', () => {
+  it('supports author comment CRUD, idempotent retries and one like per user', async () => {
+    const post = await createPost(resident.client, { body: 'Discuss here', neighbourhoodId: 1 });
+    const input = { postId: post.id, body: 'Hello neighbours', requestId: randomUUID() };
+    const comment = await createComment(other.client, input);
+    expect((await createComment(other.client, input)).id).toBe(comment.id);
+    expect((await listComments(resident.client, post.id)).comments.map((row) => row.id)).toEqual([
+      comment.id,
+    ]);
+    expect(comment.author && Object.keys(comment.author).sort()).toEqual([
+      'avatar_url',
+      'display_name',
+      'id',
+    ]);
+    await expect(updateComment(resident.client, comment.id, 'Not mine')).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(deleteComment(resident.client, comment.id)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    expect((await updateComment(other.client, comment.id, 'Edited')).body).toBe('Edited');
+    await setPostLiked(resident.client, post.id, true);
+    expect(await setPostLiked(resident.client, post.id, true)).toEqual({
+      likeCount: 1,
+      likedByMe: true,
+    });
+    expect(await getPostLikeState(other.client, post.id)).toEqual({
+      likeCount: 1,
+      likedByMe: false,
+    });
+    await setPostLiked(other.client, post.id, true);
+    expect(await setPostLiked(resident.client, post.id, false)).toEqual({
+      likeCount: 1,
+      likedByMe: false,
+    });
+    await deleteComment(other.client, comment.id);
+    expect((await listComments(resident.client, post.id)).comments).toEqual([]);
+    await createComment(other.client, { postId: post.id, body: 'Cascade me' });
+    await deletePost(resident.client, post.id);
+    expect((await service.from('comments').select('id').eq('post_id', post.id)).data).toEqual([]);
+    expect(
+      (await service.from('post_likes').select('post_id').eq('post_id', post.id)).data,
+    ).toEqual([]);
+  });
+
+  it('rejects direct metadata/authorship spoofing and whitespace-only comments', async () => {
+    const post = await createPost(resident.client, {
+      body: 'Protected interaction data',
+      neighbourhoodId: 1,
+    });
+    const row = { author_id: resident.id, post_id: post.id, body: 'Hello' };
+    expect(
+      (await resident.client.from('comments').insert({ ...row, body: ' \n\t ' })).error?.code,
+    ).toBe('23514');
+    expect(
+      (await resident.client.from('comments').insert({ ...row, author_id: other.id })).error?.code,
+    ).toBe('42501');
+    expect(
+      (await resident.client.from('comments').insert({ ...row, created_at: hourAgo() })).error
+        ?.code,
+    ).toBe('42501');
+    expect(
+      (await resident.client.from('comments').insert({ ...row, is_removed: true })).error?.code,
+    ).toBe('42501');
+    expect(
+      (await resident.client.from('post_likes').insert({ post_id: post.id, user_id: other.id }))
+        .error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await resident.client
+          .from('post_likes')
+          .insert({ post_id: post.id, user_id: resident.id, created_at: hourAgo() })
+      ).error?.code,
+    ).toBe('42501');
+    await deletePost(resident.client, post.id);
+  });
+
+  it('hides interactions on blocked/removed posts and prevents new interactions', async () => {
+    const post = await createPost(resident.client, { body: 'Visibility', neighbourhoodId: 1 });
+    const comment = await createComment(other.client, { postId: post.id, body: 'Own comment' });
+    await setPostLiked(other.client, post.id, true);
+    const block = await other.client
+      .from('blocks')
+      .insert({ blocker_id: other.id, blocked_id: resident.id });
+    if (block.error) throw block.error;
+    try {
+      expect((await listComments(other.client, post.id)).comments).toEqual([]);
+      await expect(getPostLikeState(other.client, post.id)).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      await expect(
+        createComment(other.client, { postId: post.id, body: 'Blocked' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(updateComment(other.client, comment.id, 'Blocked edit')).rejects.toMatchObject({
+        code: 'not_found',
+      });
+    } finally {
+      await other.client.from('blocks').delete().eq('blocked_id', resident.id);
+    }
+    const removal = await service.from('posts').update({ is_removed: true }).eq('id', post.id);
+    if (removal.error) throw removal.error;
+    expect((await listComments(other.client, post.id)).comments).toEqual([]);
+    await expect(setPostLiked(resident.client, post.id, true)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(deleteComment(other.client, comment.id)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    const likes = await other.client.from('post_likes').select('user_id').eq('post_id', post.id);
+    expect(likes.data).toEqual([]);
+    await service.from('posts').delete().eq('id', post.id);
+  });
+
+  it('prevents suspended users from creating/editing/deleting comments and changing likes', async () => {
+    const post = await createPost(resident.client, { body: 'Suspension test', neighbourhoodId: 1 });
+    const comment = await createComment(other.client, {
+      postId: post.id,
+      body: 'Before suspension',
+    });
+    await setPostLiked(other.client, post.id, true);
+    await setUserStatus(admin.client, other.id, 'suspended', 'Interaction test');
+    try {
+      await expect(
+        createComment(other.client, { postId: post.id, body: 'Denied' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(updateComment(other.client, comment.id, 'Denied')).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      await expect(deleteComment(other.client, comment.id)).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      await expect(setPostLiked(other.client, post.id, false)).rejects.toMatchObject({
+        code: '42501',
+      });
+    } finally {
+      await setUserStatus(admin.client, other.id, 'active');
+    }
+    await deletePost(resident.client, post.id);
+  });
+
+  it('paginates comments with identical timestamps in chronological order', async () => {
+    const post = await createPost(resident.client, { body: 'Comment pages', neighbourhoodId: 1 });
+    const created_at = new Date().toISOString();
+    const inserted = await service
+      .from('comments')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          post_id: post.id,
+          author_id: other.id,
+          body: `Page ${i}`,
+          created_at,
+        })),
+      )
+      .select('id');
+    if (inserted.error) throw inserted.error;
+    let cursor: Awaited<ReturnType<typeof listComments>>['nextCursor'] = null;
+    const ids: string[] = [];
+    for (let pageNumber = 0; pageNumber < 5; pageNumber++) {
+      const page = await listComments(resident.client, post.id, { limit: 2, cursor });
+      ids.unshift(...page.comments.map((row) => row.id));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(cursor).toBeNull();
+    expect(ids).toEqual(inserted.data.map((row) => row.id).sort());
+    await deletePost(resident.client, post.id);
   });
 });

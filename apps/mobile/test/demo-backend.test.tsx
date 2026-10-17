@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createDemoBackend, DEMO_ACCOUNTS } from '../src/demo/demoBackend';
+import { createDemoBackend, DEMO_ACCOUNTS, DEMO_STORAGE_KEY } from '../src/demo/demoBackend';
 
 vi.mock('expo-crypto', () => ({ randomUUID: () => '44444444-4444-4444-8444-444444444444' }));
 let storage: Storage;
@@ -76,5 +76,112 @@ describe('local demo posts', () => {
     backend.reset();
     expect(backend.getProfile()).toBeNull();
     expect(storage.getItem('real-auth-session')).toBe('preserve me');
+  });
+});
+
+describe('demo comments and likes', () => {
+  const postInput = {
+    body: 'Discuss here',
+    neighbourhoodId: 1,
+    requestId: '55555555-5555-4555-8555-555555555555',
+  };
+  const requestId = '66666666-6666-4666-8666-666666666666';
+
+  it('persists comment CRUD and protects other residents’ comments', async () => {
+    backend.signIn(DEMO_ACCOUNTS[0].email);
+    const post = await backend.createPost(postInput);
+    const comment = await backend.createComment({ postId: post.id, body: '  Hello  ', requestId });
+    expect(comment.body).toBe('Hello');
+    expect(comment.author?.display_name).toBe('Yining');
+    const retry = await backend.createComment({
+      postId: post.id,
+      body: 'Updated retry',
+      requestId,
+    });
+    expect(retry.id).toBe(comment.id);
+    expect((await backend.listComments(post.id)).comments).toHaveLength(1);
+    const restored = createDemoBackend(storage);
+    expect((await restored.listComments(post.id)).comments[0].body).toBe('Updated retry');
+    restored.signIn(DEMO_ACCOUNTS[1].email);
+    await expect(restored.updateComment(comment.id, 'Not mine')).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(restored.deleteComment(comment.id)).rejects.toMatchObject({ code: 'not_found' });
+    restored.signIn(DEMO_ACCOUNTS[0].email);
+    expect((await restored.updateComment(comment.id, 'Edited')).body).toBe('Edited');
+    await restored.deleteComment(comment.id);
+    expect((await restored.listComments(post.id)).comments).toEqual([]);
+  });
+
+  it('keeps one like per resident and unlikes without removing anyone else’s like', async () => {
+    backend.signIn(DEMO_ACCOUNTS[0].email);
+    const post = await backend.createPost(postInput);
+    expect(await backend.getPostLikeState(post.id)).toEqual({ likeCount: 0, likedByMe: false });
+    await backend.setPostLiked(post.id, true);
+    expect(await backend.setPostLiked(post.id, true)).toEqual({ likeCount: 1, likedByMe: true });
+    backend.signIn(DEMO_ACCOUNTS[1].email);
+    expect(await backend.getPostLikeState(post.id)).toEqual({ likeCount: 1, likedByMe: false });
+    await backend.setPostLiked(post.id, true);
+    expect(await createDemoBackend(storage).getPostLikeState(post.id)).toEqual({
+      likeCount: 2,
+      likedByMe: true,
+    });
+    expect(await backend.setPostLiked(post.id, false)).toEqual({ likeCount: 1, likedByMe: false });
+    expect(await backend.setPostLiked(post.id, false)).toEqual({ likeCount: 1, likedByMe: false });
+  });
+
+  it('paginates comments chronologically with ID tie breakers', async () => {
+    backend.signIn(DEMO_ACCOUNTS[0].email);
+    const post = await backend.createPost(postInput);
+    for (let index = 0; index < 25; index++) {
+      await backend.createComment({
+        postId: post.id,
+        body: `Comment ${index}`,
+        requestId: `77777777-7777-4777-8777-${String(index).padStart(12, '0')}`,
+      });
+    }
+    const first = await backend.listComments(post.id);
+    const second = await backend.listComments(post.id, { cursor: first.nextCursor });
+    expect(first.comments).toHaveLength(20);
+    expect(second.comments).toHaveLength(5);
+    expect(second.nextCursor).toBeNull();
+    const comments = [...second.comments, ...first.comments];
+    expect(comments.map((comment) => comment.body)).toEqual(
+      Array.from({ length: 25 }, (_, i) => `Comment ${i}`),
+    );
+    expect(new Set(comments.map((comment) => comment.id)).size).toBe(25);
+  });
+
+  it('upgrades existing local data without losing posts, and cascades post deletion', async () => {
+    backend.signIn(DEMO_ACCOUNTS[0].email);
+    const post = await backend.createPost(postInput);
+    const legacy = JSON.parse(storage.getItem(DEMO_STORAGE_KEY)!);
+    delete legacy.comments;
+    delete legacy.likes;
+    storage.setItem(DEMO_STORAGE_KEY, JSON.stringify(legacy));
+    const restored = createDemoBackend(storage);
+    expect((await restored.getPost(post.id))?.body).toBe(postInput.body);
+    expect(restored.getProfile()?.display_name).toBe('Yining');
+    await restored.createComment({ postId: post.id, body: 'Hello', requestId });
+    await restored.setPostLiked(post.id, true);
+    await restored.deletePost(post.id);
+    const state = JSON.parse(storage.getItem(DEMO_STORAGE_KEY)!);
+    expect(state.comments).toEqual([]);
+    expect(state.likes).toEqual([]);
+    await expect(restored.setPostLiked(post.id, true)).rejects.toMatchObject({ code: 'not_found' });
+    await expect(
+      restored.createComment({ postId: post.id, body: 'Too late', requestId }),
+    ).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('validates comment bodies before saving', async () => {
+    backend.signIn(DEMO_ACCOUNTS[0].email);
+    const post = await backend.createPost(postInput);
+    for (const body of [' \n\t ', 'x'.repeat(1001)]) {
+      await expect(
+        backend.createComment({ postId: post.id, body, requestId }),
+      ).rejects.toMatchObject({ code: 'validation' });
+    }
+    expect((await backend.listComments(post.id)).comments).toEqual([]);
   });
 });

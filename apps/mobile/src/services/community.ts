@@ -21,3 +21,22 @@ export const deletePost: typeof api.deletePost = DEMO_MODE
 export const listNeighbourhoods: typeof api.listNeighbourhoods = DEMO_MODE
   ? () => getDemoBackend().listNeighbourhoods()
   : api.listNeighbourhoods;
+
+export const listComments: typeof api.listComments = DEMO_MODE
+  ? (_client, id, options) => getDemoBackend().listComments(id, options)
+  : api.listComments;
+export const createComment: typeof api.createComment = DEMO_MODE
+  ? (_client, input) => getDemoBackend().createComment(input)
+  : api.createComment;
+export const updateComment: typeof api.updateComment = DEMO_MODE
+  ? (_client, id, body) => getDemoBackend().updateComment(id, body)
+  : api.updateComment;
+export const deleteComment: typeof api.deleteComment = DEMO_MODE
+  ? (_client, id) => getDemoBackend().deleteComment(id)
+  : api.deleteComment;
+export const getPostLikeState: typeof api.getPostLikeState = DEMO_MODE
+  ? (_client, id, options) => getDemoBackend().getPostLikeState(id, options)
+  : api.getPostLikeState;
+export const setPostLiked: typeof api.setPostLiked = DEMO_MODE
+  ? (_client, id, liked) => getDemoBackend().setPostLiked(id, liked)
+  : api.setPostLiked;

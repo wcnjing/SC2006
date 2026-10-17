@@ -3,6 +3,14 @@ import {
   validatePostBody,
   validatePostImageUrl,
   type CommunityPost,
+  type Comment as PostComment,
+  type PostLike,
+  type CommunityComment,
+  type CreateCommentInput,
+  type CommentListOptions,
+  type CommentPage,
+  type PostLikeState,
+  validateCommentBody,
   type CreatePostInput,
   type Neighbourhood,
   type Post,
@@ -14,7 +22,13 @@ import {
 
 export const DEMO_STORAGE_KEY = 'communitylink-p3-demo-v1';
 type DemoStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
-type DemoState = { version: 1; userId: string | null; posts: Post[] };
+type DemoState = {
+  version: 1;
+  userId: string | null;
+  posts: Post[];
+  comments: PostComment[];
+  likes: PostLike[];
+};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const neighbourhoods: Neighbourhood[] = [
@@ -60,6 +74,8 @@ function seed(): DemoState {
   return {
     version: 1,
     userId: null,
+    comments: [],
+    likes: [],
     posts: Array.from({ length: 27 }, (_, index) => {
       const createdAt = new Date(now - index * 60000).toISOString();
       return {
@@ -100,11 +116,16 @@ export function createDemoBackend(storage: DemoStorage) {
       if (
         state.version !== 1 ||
         !Array.isArray(state.posts) ||
+        (state.comments !== undefined && !Array.isArray(state.comments)) ||
+        (state.likes !== undefined && !Array.isArray(state.likes)) ||
         (state.userId !== null &&
           !DEMO_ACCOUNTS.some((account) => account.profile.id === state.userId))
       )
         throw new Error();
-      return state;
+      // Upgrade existing demo data without discarding the user's posts/session.
+      const upgraded = { ...state, comments: state.comments ?? [], likes: state.likes ?? [] };
+      if (state.comments === undefined || state.likes === undefined) write(upgraded);
+      return upgraded;
     } catch {
       throw new ApiError(
         'Demo data could not be loaded. Use Reset demo data to start again.',
@@ -155,6 +176,45 @@ export function createDemoBackend(storage: DemoStorage) {
     );
     if (!post) throw new ApiError('This post is unavailable or you cannot change it.', 'not_found');
     return post;
+  }
+
+  function visiblePost(state: DemoState, id: string): Post {
+    requireProfile(state);
+    const post = state.posts.find((row) => row.id === id && !row.is_removed);
+    if (!post) throw new ApiError('This post is unavailable.', 'not_found');
+    return post;
+  }
+  function hydrateComment(comment: PostComment): CommunityComment {
+    const author = DEMO_ACCOUNTS.find(
+      (account) => account.profile.id === comment.author_id,
+    )?.profile;
+    return {
+      ...comment,
+      author: author
+        ? { id: author.id, display_name: author.display_name, avatar_url: author.avatar_url }
+        : null,
+    };
+  }
+  function commentBody(body: string): string {
+    const error = validateCommentBody(body);
+    if (error) throw new ApiError(error, 'validation');
+    return body.trim();
+  }
+  function ownComment(state: DemoState, id: string): PostComment {
+    const author = requireProfile(state);
+    const comment = state.comments.find(
+      (row) => row.id === id && row.author_id === author.id && !row.is_removed,
+    );
+    if (!comment)
+      throw new ApiError('This comment is unavailable or you cannot change it.', 'not_found');
+    visiblePost(state, comment.post_id);
+    return comment;
+  }
+  function likeState(state: DemoState, postId: string): PostLikeState {
+    const author = requireProfile(state);
+    visiblePost(state, postId);
+    const likes = state.likes.filter((like) => like.post_id === postId);
+    return { likeCount: likes.length, likedByMe: likes.some((like) => like.user_id === author.id) };
   }
 
   return {
@@ -259,7 +319,106 @@ export function createDemoBackend(storage: DemoStorage) {
     async deletePost(id: string): Promise<void> {
       const state = read();
       ownPost(state, id);
-      write({ ...state, posts: state.posts.filter((post) => post.id !== id) });
+      write({
+        ...state,
+        posts: state.posts.filter((post) => post.id !== id),
+        comments: state.comments.filter((comment) => comment.post_id !== id),
+        likes: state.likes.filter((like) => like.post_id !== id),
+      });
+    },
+    async listComments(
+      postId: string,
+      { limit = 20, cursor, signal }: CommentListOptions = {},
+    ): Promise<CommentPage> {
+      signal?.throwIfAborted();
+      const state = read();
+      visiblePost(state, postId);
+      if (!Number.isInteger(limit) || limit < 1 || limit > 50)
+        throw new ApiError('Invalid comment page size.', 'validation');
+      const rows = state.comments
+        .filter((comment) => comment.post_id === postId && !comment.is_removed)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+        .filter(
+          (comment) =>
+            !cursor ||
+            comment.created_at < cursor.createdAt ||
+            (comment.created_at === cursor.createdAt && comment.id < cursor.id),
+        );
+      const comments = rows.slice(0, limit).reverse().map(hydrateComment);
+      const oldest = comments[0];
+      return {
+        comments,
+        nextCursor:
+          rows.length > limit && oldest ? { createdAt: oldest.created_at, id: oldest.id } : null,
+      };
+    },
+    async createComment(input: CreateCommentInput): Promise<CommunityComment> {
+      const state = read();
+      const author = requireProfile(state);
+      visiblePost(state, input.postId);
+      const body = commentBody(input.body);
+      const id = input.requestId ?? (await import('expo-crypto')).randomUUID();
+      if (!UUID.test(id)) throw new ApiError('Invalid draft ID.', 'validation');
+      const existing = state.comments.find((comment) => comment.id === id);
+      if (existing) {
+        ownComment(state, id);
+        if (existing.post_id !== input.postId)
+          throw new ApiError('This comment belongs to another post.', 'conflict');
+        existing.body = body;
+        write(state);
+        return hydrateComment(existing);
+      }
+      const comment: PostComment = {
+        id,
+        post_id: input.postId,
+        author_id: author.id,
+        body,
+        is_removed: false,
+        removed_reason: null,
+        created_at: new Date().toISOString(),
+      };
+      write({ ...state, comments: [...state.comments, comment] });
+      return hydrateComment(comment);
+    },
+    async updateComment(id: string, body: string): Promise<CommunityComment> {
+      const state = read();
+      const comment = ownComment(state, id);
+      comment.body = commentBody(body);
+      write(state);
+      return hydrateComment(comment);
+    },
+    async deleteComment(id: string): Promise<void> {
+      const state = read();
+      ownComment(state, id);
+      write({ ...state, comments: state.comments.filter((comment) => comment.id !== id) });
+    },
+    async getPostLikeState(
+      postId: string,
+      { signal }: { signal?: AbortSignal } = {},
+    ): Promise<PostLikeState> {
+      signal?.throwIfAborted();
+      return likeState(read(), postId);
+    },
+    async setPostLiked(postId: string, liked: boolean): Promise<PostLikeState> {
+      const state = read();
+      const author = requireProfile(state);
+      visiblePost(state, postId);
+      if (typeof liked !== 'boolean') throw new ApiError('Invalid like state.', 'validation');
+      const mine = state.likes.some(
+        (like) => like.post_id === postId && like.user_id === author.id,
+      );
+      if (liked && !mine)
+        state.likes.push({
+          post_id: postId,
+          user_id: author.id,
+          created_at: new Date().toISOString(),
+        });
+      if (!liked)
+        state.likes = state.likes.filter(
+          (like) => like.post_id !== postId || like.user_id !== author.id,
+        );
+      write(state);
+      return likeState(state, postId);
     },
   };
 }

@@ -36,5 +36,10 @@ export function useCommunityQuery<T>(load: (signal: AbortSignal) => Promise<T>) 
       };
     }, [retry]),
   );
-  return { ...state, retry };
+  const replace = useCallback((data: T) => {
+    request.current += 1;
+    controller.current?.abort();
+    setState({ data, loading: false, error: null });
+  }, []);
+  return { ...state, retry, replace };
 }
