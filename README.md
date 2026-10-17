@@ -54,6 +54,8 @@ Use **Report post** / **Report comment** to submit a reason, then **My reports**
 to view your own submissions and status. Reports also persist in that browser.
 Choose **Continue as Demo Admin**, then **Admin moderation** to review reports,
 remove content or dismiss reports, and view the moderation audit log.
+Open **Connections** to find people, send friend requests, manage incoming/sent
+requests, and view friends. Switch between Yining and Auntie Mei to try both sides.
 **Reset demo data** on the resident-selection screen restores the sample posts.
 
 This uses the same post screens with a local data service. Real database/RLS
@@ -62,6 +64,7 @@ verification still needs Supabase. Normal `npm run mobile` / `npm run web
 See [P3 posts and feed](docs/p3-posts-feed.md) for details.
 See [P3 reports](docs/p3-reports.md) for reporting APIs, screens and database protections.
 See [P3 admin moderation](docs/p3-moderation.md) for the review and audit workflow.
+See [P3 connections](docs/p3-connections.md) for friend requests and database rules.
 
 ## Using the shared package
 

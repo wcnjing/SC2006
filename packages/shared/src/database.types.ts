@@ -689,6 +689,28 @@ export type Database = {
         Args: { user_a: string; user_b: string };
         Returns: boolean;
       };
+      send_connection_request: {
+        Args: { p_target_user: string };
+        Returns: Database['public']['Tables']['connections']['Row'][];
+      };
+      manage_connection_request: {
+        Args: { p_requester: string; p_addressee: string; p_created_at: string; p_action: string };
+        Returns: Database['public']['Tables']['connections']['Row'][];
+      };
+      find_connection_people: {
+        Args: { p_query?: string; p_limit?: number; p_after?: string };
+        Returns: {
+          id: string;
+          display_name: string;
+          avatar_url: string | null;
+          neighbourhood_id: number | null;
+          requester_id: string | null;
+          addressee_id: string | null;
+          connection_status: Database['public']['Enums']['connection_status'] | null;
+          connection_created_at: string | null;
+          responded_at: string | null;
+        }[];
+      };
       current_user_role: {
         Args: never;
         Returns: Database['public']['Enums']['user_role'];

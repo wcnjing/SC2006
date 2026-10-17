@@ -2,8 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { communityText } from './communityUi';
 
-/** Shared pagination for the admin queue and audit history; stale pages never cross filters. */
-export function useModerationPage<T extends { id: string | number }, C>(
+/** Shared pagination; stale pages never cross filters or signed-in users. */
+export function useCommunityPage<T extends { id: string | number }, C>(
   fetchPage: (
     signal: AbortSignal,
     cursor: C | null,
@@ -71,5 +71,21 @@ export function useModerationPage<T extends { id: string | number }, C>(
     refresh: () => void load(true),
     loadMore: () => void load(false),
     retry: () => void load(failedReset.current),
+    replace: (item: T) => {
+      version.current += 1;
+      controller.current?.abort();
+      busy.current = false;
+      setLoading(false);
+      setError(null);
+      setItems((previous) => previous.map((row) => (row.id === item.id ? item : row)));
+    },
+    remove: (id: T['id']) => {
+      version.current += 1;
+      controller.current?.abort();
+      busy.current = false;
+      setLoading(false);
+      setError(null);
+      setItems((previous) => previous.filter((row) => row.id !== id));
+    },
   };
 }

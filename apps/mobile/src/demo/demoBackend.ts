@@ -34,6 +34,15 @@ import {
   type ModerationContent,
   type ModerationAuditOptions,
   type ModerationAuditPage,
+  type Block,
+  type Connection,
+  type ConnectionRequestRef,
+  type ConnectionPerson,
+  type ConnectionListOptions,
+  type ConnectionPage,
+  type ConnectionPeopleOptions,
+  type ConnectionPeoplePage,
+  connectionRequestRef,
 } from '@communitylink/shared';
 
 export const DEMO_STORAGE_KEY = 'communitylink-p3-demo-v1';
@@ -46,6 +55,9 @@ type DemoState = {
   likes: PostLike[];
   reports: Report[];
   audit: AuditLogEntry[];
+  connections: Connection[];
+  blocks: Block[];
+  connectionClock: number;
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -103,6 +115,9 @@ function seed(): DemoState {
     likes: [],
     reports: [],
     audit: [],
+    connections: [],
+    blocks: [],
+    connectionClock: 0,
     posts: Array.from({ length: 27 }, (_, index) => {
       const createdAt = new Date(now - index * 60000).toISOString();
       return {
@@ -147,6 +162,8 @@ export function createDemoBackend(storage: DemoStorage) {
         (state.likes !== undefined && !Array.isArray(state.likes)) ||
         (state.reports !== undefined && !Array.isArray(state.reports)) ||
         (state.audit !== undefined && !Array.isArray(state.audit)) ||
+        (state.connections !== undefined && !Array.isArray(state.connections)) ||
+        (state.blocks !== undefined && !Array.isArray(state.blocks)) ||
         (state.userId !== null &&
           !DEMO_ACCOUNTS.some((account) => account.profile.id === state.userId))
       )
@@ -161,12 +178,18 @@ export function createDemoBackend(storage: DemoStorage) {
           reviewed_by: row.reviewed_by ?? null,
         })),
         audit: state.audit ?? [],
+        connections: state.connections ?? [],
+        blocks: state.blocks ?? [],
+        connectionClock: state.connectionClock ?? 0,
       };
       if (
         state.comments === undefined ||
         state.likes === undefined ||
         state.reports === undefined ||
         state.audit === undefined ||
+        state.connections === undefined ||
+        state.blocks === undefined ||
+        state.connectionClock === undefined ||
         state.reports.some((row) => row.reviewed_by === undefined)
       )
         write(upgraded);
@@ -188,6 +211,78 @@ export function createDemoBackend(storage: DemoStorage) {
     if (!can(current, 'report:review'))
       throw new ApiError('Only active admins can moderate reports.', '42501');
     return current;
+  }
+  function requireActive(state: DemoState): Profile {
+    const current = requireProfile(state);
+    if (current.status !== 'active')
+      throw new ApiError('Only active users can manage connection requests.', '42501');
+    return current;
+  }
+  function blocked(state: DemoState, a: string, b: string) {
+    return state.blocks.some(
+      (row) =>
+        (row.blocker_id === a && row.blocked_id === b) ||
+        (row.blocker_id === b && row.blocked_id === a),
+    );
+  }
+  function connectionPerson(id: string) {
+    const current = DEMO_ACCOUNTS.find((row) => row.profile.id === id)?.profile;
+    return current
+      ? {
+          id: current.id,
+          display_name: current.display_name,
+          avatar_url: current.avatar_url,
+          neighbourhood_id: current.neighbourhood_id,
+        }
+      : null;
+  }
+  function timestamp(state: DemoState) {
+    state.connectionClock = Math.max(Date.now(), state.connectionClock + 1);
+    return new Date(state.connectionClock).toISOString();
+  }
+  async function manageConnection(
+    ref: ConnectionRequestRef,
+    action: 'accept' | 'reject' | 'cancel',
+  ) {
+    const state = read();
+    const actor = requireActive(state);
+    if (
+      !UUID.test(ref.requesterId) ||
+      !UUID.test(ref.addresseeId) ||
+      ref.requesterId === ref.addresseeId ||
+      !Number.isFinite(Date.parse(ref.createdAt))
+    )
+      throw new ApiError('Invalid connection request.', 'validation');
+    if ((action === 'cancel' ? ref.requesterId : ref.addresseeId) !== actor.id)
+      throw new ApiError('You cannot perform this request action.', '42501');
+    const row = state.connections.find(
+      (connection) =>
+        connection.requester_id === ref.requesterId && connection.addressee_id === ref.addresseeId,
+    );
+    if (!row) {
+      if (action === 'accept') throw new ApiError('This request is no longer available.', 'P0002');
+      return null;
+    }
+    if (Date.parse(row.created_at) !== Date.parse(ref.createdAt))
+      throw new ApiError('This request changed. Refresh before continuing.', '40001');
+    if (action === 'accept') {
+      const requester = DEMO_ACCOUNTS.find(
+        (account) => account.profile.id === ref.requesterId,
+      )?.profile;
+      if (blocked(state, ref.requesterId, ref.addresseeId) || requester?.status !== 'active')
+        throw new ApiError('This connection request is unavailable.', '42501');
+      if (row.status === 'pending') {
+        row.status = 'accepted';
+        row.responded_at = timestamp(state);
+        write(state);
+      }
+      return { ...row };
+    }
+    if (row.status !== 'pending')
+      throw new ApiError('This request was already accepted. Refresh before continuing.', '40001');
+    state.connections = state.connections.filter((connection) => connection !== row);
+    write(state);
+    return { ...row };
   }
   function submitted(report: Report): SubmittedReport {
     const { reviewed_by: _reviewer, ...row } = report;
@@ -726,6 +821,145 @@ export function createDemoBackend(storage: DemoStorage) {
         .sort((a, b) => b.id - a.id);
       const entries = rows.slice(0, limit).map((row) => ({ ...row }));
       return { entries, nextCursor: rows.length > limit ? entries.at(-1)!.id : null };
+    },
+    async sendConnectionRequest(targetUserId: string): Promise<Connection> {
+      const state = read();
+      const actor = requireActive(state);
+      if (!UUID.test(targetUserId) || targetUserId === actor.id)
+        throw new ApiError('Choose another resident.', 'validation');
+      const target = DEMO_ACCOUNTS.find((account) => account.profile.id === targetUserId)?.profile;
+      if (target?.status !== 'active')
+        throw new ApiError('This resident is unavailable for requests.', 'P0002');
+      if (blocked(state, actor.id, targetUserId))
+        throw new ApiError('This connection request is unavailable.', '42501');
+      const existing = state.connections.find(
+        (row) =>
+          (row.requester_id === actor.id && row.addressee_id === targetUserId) ||
+          (row.requester_id === targetUserId && row.addressee_id === actor.id),
+      );
+      if (existing) return { ...existing };
+      const row: Connection = {
+        requester_id: actor.id,
+        addressee_id: targetUserId,
+        status: 'pending',
+        created_at: timestamp(state),
+        responded_at: null,
+      };
+      state.connections.push(row);
+      write(state);
+      return { ...row };
+    },
+    async acceptConnectionRequest(ref: ConnectionRequestRef): Promise<Connection> {
+      const row = await manageConnection(ref, 'accept');
+      if (!row) throw new ApiError('This request is no longer available.', 'not_found');
+      return row;
+    },
+    async rejectConnectionRequest(ref: ConnectionRequestRef): Promise<void> {
+      await manageConnection(ref, 'reject');
+    },
+    async cancelConnectionRequest(ref: ConnectionRequestRef): Promise<void> {
+      await manageConnection(ref, 'cancel');
+    },
+    async listConnections({
+      view = 'all',
+      limit = 20,
+      cursor,
+      signal,
+    }: ConnectionListOptions = {}): Promise<ConnectionPage> {
+      signal?.throwIfAborted();
+      const state = read();
+      const actor = requireProfile(state);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        !['incoming', 'outgoing', 'friends', 'all'].includes(view)
+      )
+        throw new ApiError('Invalid connection filters.', 'validation');
+      if (
+        cursor &&
+        (!UUID.test(cursor.requesterId) ||
+          !UUID.test(cursor.addresseeId) ||
+          !Number.isFinite(Date.parse(cursor.createdAt)))
+      )
+        throw new ApiError('Invalid connection cursor.', 'validation');
+      const rows = state.connections
+        .filter(
+          (row) =>
+            (row.requester_id === actor.id || row.addressee_id === actor.id) &&
+            !blocked(state, row.requester_id, row.addressee_id),
+        )
+        .filter((row) =>
+          view === 'incoming'
+            ? row.addressee_id === actor.id && row.status === 'pending'
+            : view === 'outgoing'
+              ? row.requester_id === actor.id && row.status === 'pending'
+              : view === 'friends'
+                ? row.status === 'accepted'
+                : true,
+        )
+        .sort(
+          (a, b) =>
+            b.created_at.localeCompare(a.created_at) ||
+            b.requester_id.localeCompare(a.requester_id) ||
+            b.addressee_id.localeCompare(a.addressee_id),
+        )
+        .filter(
+          (row) =>
+            !cursor ||
+            row.created_at < cursor.createdAt ||
+            (row.created_at === cursor.createdAt &&
+              (row.requester_id < cursor.requesterId ||
+                (row.requester_id === cursor.requesterId &&
+                  row.addressee_id < cursor.addresseeId))),
+        );
+      const connections = rows.slice(0, limit).map((row) => ({
+        ...row,
+        requester: connectionPerson(row.requester_id),
+        addressee: connectionPerson(row.addressee_id),
+      }));
+      return {
+        connections,
+        nextCursor: rows.length > limit ? connectionRequestRef(connections.at(-1)!) : null,
+      };
+    },
+    async findConnectionPeople({
+      query = '',
+      limit = 20,
+      cursor,
+      signal,
+    }: ConnectionPeopleOptions = {}): Promise<ConnectionPeoplePage> {
+      signal?.throwIfAborted();
+      const state = read();
+      const actor = requireActive(state);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        Array.from(query.trim()).length > 50 ||
+        (cursor && !UUID.test(cursor))
+      )
+        throw new ApiError('Invalid people search.', 'validation');
+      const rows = DEMO_ACCOUNTS.map((account) => account.profile)
+        .filter(
+          (profile) =>
+            profile.id !== actor.id &&
+            profile.status === 'active' &&
+            !blocked(state, actor.id, profile.id) &&
+            profile.display_name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) &&
+            (!cursor || profile.id > cursor),
+        )
+        .sort((a, b) => a.id.localeCompare(b.id));
+      const people: ConnectionPerson[] = rows.slice(0, limit).map((profile) => ({
+        profile: connectionPerson(profile.id)!,
+        connection:
+          state.connections.find(
+            (row) =>
+              (row.requester_id === actor.id && row.addressee_id === profile.id) ||
+              (row.addressee_id === actor.id && row.requester_id === profile.id),
+          ) ?? null,
+      }));
+      return { people, nextCursor: rows.length > limit ? people.at(-1)!.profile.id : null };
     },
     async setPostLiked(postId: string, liked: boolean): Promise<PostLikeState> {
       const state = read();

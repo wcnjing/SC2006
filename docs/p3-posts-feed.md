@@ -122,7 +122,8 @@ Remaining FR 7 work: categories, announcement permissions/filtering, device imag
 upload and multiple images need agreed schema/storage additions.
 [Post/comment reports and personal history](p3-reports.md) are implemented in
 the next increment. [Admin moderation and audit](p3-moderation.md) are also
-implemented. Connections, messaging and blocking screens remain separate P3 work.
+implemented. [Connections and friend requests](p3-connections.md) are implemented
+as well. Messaging and blocking screens remain separate P3 work.
 
 ## Verification
 

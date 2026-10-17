@@ -90,7 +90,7 @@ Clients can only `UPDATE` the columns granted in `*_rls_policies.sql`. To change
 ## Open items for each owner
 
 - **P2:** enforce `capacity` when joining (trigger or RPC). Add the recommendation query/RPC. Add dataset import with `source = 'dataset'` and `external_id`.
-- **P3:** when blocking, delete any connection between the two users (trigger on `blocks`). Reporting and the audited admin moderation queue are implemented below.
+- **P3:** messaging and blocking screens remain. Connection request RPCs and block cleanup triggers, reporting and audited admin moderation are implemented below.
 - **P4:** `notify(user_id, type, payload)` as a `security definer` function, called from triggers (activity changed/cancelled, connection request, new DM) so clients can't spam notifications.
 - **P1:** real Singpass (Week 10) sets `profiles.singpass_verified`.
 
@@ -130,6 +130,20 @@ moderation decisions; P1's `listAuditLog` still exposes the full system log.
 
 See [P3 admin moderation](p3-moderation.md) for routes, migration, retry/conflict
 semantics and verification. Moderation reasons are visible in reporters' histories.
+
+## Connections (P3)
+
+`sendConnectionRequest(client, targetUserId)` sends a friend request.
+`listConnections(client, { view?, limit?, cursor?, signal? }?)` lists incoming,
+outgoing or accepted relationships. `findConnectionPeople` searches public names
+and returns only the caller's relationship with each person.
+
+Use `connectionRequestRef(connection)` with `acceptConnectionRequest`,
+`rejectConnectionRequest` or `cancelConnectionRequest`. Recipient/sender rights,
+active status, blocking and state transitions are enforced by the request RPCs;
+clients cannot write relationship state directly. Accept creates a friendship;
+reject/cancel delete a pending row. See [P3 connections](p3-connections.md) for
+the `/connections` screen, migration and concurrency rules.
 
 ## Errors
 

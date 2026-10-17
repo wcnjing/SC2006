@@ -1,7 +1,7 @@
 import { act, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { useModerationPage } from '../src/community/useModerationPage';
+import { useCommunityPage } from '../src/community/useCommunityPage';
 
 vi.mock('expo-router', () => ({
   useFocusEffect: (effect: () => void) => useEffect(effect, [effect]),
@@ -10,9 +10,9 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 type Page = { items: { id: string }[]; nextCursor: number | null };
 const fetchPage = vi.fn<(signal: AbortSignal, cursor: number | null) => Promise<Page>>();
 let root: Root;
-let history: ReturnType<typeof useModerationPage<{ id: string }, number>>;
+let history: ReturnType<typeof useCommunityPage<{ id: string }, number>>;
 function Harness({ load = fetchPage }: { load?: typeof fetchPage }) {
-  history = useModerationPage(load);
+  history = useCommunityPage(load);
   return null;
 }
 beforeEach(() => {
@@ -52,4 +52,21 @@ it('retains loaded rows and retries a failed older page without duplicating rows
   expect(fetchPage.mock.calls[2][1]).toBe(20);
   expect(history.items.map((item) => item.id)).toEqual(['latest', 'older']);
   expect(history.hasMore).toBe(false);
+});
+
+it('does not let a late refresh overwrite a completed request action', async () => {
+  let resolve!: (page: Page) => void;
+  fetchPage
+    .mockResolvedValueOnce({ items: [{ id: 'request' }], nextCursor: null })
+    .mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+  await act(async () => root.render(<Harness />));
+  await act(async () => history.refresh());
+  await act(async () => history.remove('request'));
+  await act(async () => resolve({ items: [{ id: 'request' }], nextCursor: null }));
+  expect(history.items).toEqual([]);
+  expect(history.loading).toBe(false);
 });

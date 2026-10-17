@@ -60,3 +60,22 @@ export const reviewContentReport: typeof api.reviewContentReport = DEMO_MODE
 export const listModerationAudit: typeof api.listModerationAudit = DEMO_MODE
   ? (_client, options) => getDemoBackend().listModerationAudit(options)
   : api.listModerationAudit;
+
+export const sendConnectionRequest: typeof api.sendConnectionRequest = DEMO_MODE
+  ? (_client, id) => getDemoBackend().sendConnectionRequest(id)
+  : api.sendConnectionRequest;
+export const acceptConnectionRequest: typeof api.acceptConnectionRequest = DEMO_MODE
+  ? (_client, ref) => getDemoBackend().acceptConnectionRequest(ref)
+  : api.acceptConnectionRequest;
+export const rejectConnectionRequest: typeof api.rejectConnectionRequest = DEMO_MODE
+  ? (_client, ref) => getDemoBackend().rejectConnectionRequest(ref)
+  : api.rejectConnectionRequest;
+export const cancelConnectionRequest: typeof api.cancelConnectionRequest = DEMO_MODE
+  ? (_client, ref) => getDemoBackend().cancelConnectionRequest(ref)
+  : api.cancelConnectionRequest;
+export const listConnections: typeof api.listConnections = DEMO_MODE
+  ? (_client, options) => getDemoBackend().listConnections(options)
+  : api.listConnections;
+export const findConnectionPeople: typeof api.findConnectionPeople = DEMO_MODE
+  ? (_client, options) => getDemoBackend().findConnectionPeople(options)
+  : api.findConnectionPeople;

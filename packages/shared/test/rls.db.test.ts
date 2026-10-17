@@ -33,6 +33,13 @@ import {
   getModerationReport,
   reviewContentReport,
   listModerationAudit,
+  sendConnectionRequest,
+  acceptConnectionRequest,
+  rejectConnectionRequest,
+  cancelConnectionRequest,
+  listConnections,
+  findConnectionPeople,
+  connectionRequestRef,
 } from '../src';
 
 // Connection details come from the running local stack (`supabase status`),
@@ -236,13 +243,8 @@ describe('social rules', () => {
     const blocked = await resident.client.from('messages').insert(dm);
     expect(blocked.error?.code).toBe('42501');
 
-    await resident.client
-      .from('connections')
-      .insert({ requester_id: resident.id, addressee_id: organiser.id });
-    await organiser.client
-      .from('connections')
-      .update({ status: 'accepted', responded_at: new Date().toISOString() })
-      .eq('requester_id', resident.id);
+    const request = await sendConnectionRequest(resident.client, organiser.id);
+    await acceptConnectionRequest(organiser.client, connectionRequestRef(request));
 
     const allowed = await resident.client.from('messages').insert(dm);
     expect(allowed.error).toBeNull();
@@ -957,5 +959,210 @@ describe('P3 admin moderation', () => {
     ).toBe(true);
     const page = await listModerationReports(admin.client, { status: 'dismissed', limit: 50 });
     expect(page.reports.some((row) => row.id === report.id)).toBe(true);
+  });
+});
+
+describe('P3 connections', () => {
+  let pairNumber = 0;
+  async function pair() {
+    const index = ++pairNumber;
+    const [a, b] = await Promise.all([
+      userWithRole(`friend-${index}-a`, 'resident'),
+      userWithRole(`friend-${index}-b`, 'resident'),
+    ]);
+    return { a, b };
+  }
+
+  it('serializes crossed sends and accepts once into both users’ private friend lists', async () => {
+    const { a, b } = await pair();
+    const [first, second] = await Promise.all([
+      sendConnectionRequest(a.client, b.id),
+      sendConnectionRequest(b.client, a.id),
+    ]);
+    expect(second).toEqual(first);
+    expect(first.status).toBe('pending');
+    const receiver = first.addressee_id === a.id ? a : b;
+    const sender = first.requester_id === a.id ? a : b;
+    expect((await listConnections(receiver.client, { view: 'incoming' })).connections).toHaveLength(
+      1,
+    );
+    expect((await listConnections(sender.client, { view: 'outgoing' })).connections).toHaveLength(
+      1,
+    );
+    expect(
+      (
+        await resident.client
+          .from('connections')
+          .select('*')
+          .eq('requester_id', first.requester_id)
+          .eq('addressee_id', first.addressee_id)
+      ).data,
+    ).toEqual([]);
+    const accepted = await acceptConnectionRequest(receiver.client, connectionRequestRef(first));
+    expect(accepted.responded_at).toBeTruthy();
+    expect(
+      (await acceptConnectionRequest(receiver.client, connectionRequestRef(first))).responded_at,
+    ).toBe(accepted.responded_at);
+    for (const user of [a, b])
+      expect((await listConnections(user.client, { view: 'friends' })).connections).toHaveLength(1);
+    const directory = await findConnectionPeople(sender.client, { query: `friend-${pairNumber}-` });
+    expect(directory.people[0]?.connection?.status).toBe('accepted');
+    expect(directory.people[0] && Object.keys(directory.people[0].profile).sort()).toEqual([
+      'avatar_url',
+      'display_name',
+      'id',
+      'neighbourhood_id',
+    ]);
+  });
+
+  it('restricts pending actions by direction, blocks direct state forgery and rejects stale generations', async () => {
+    const { a, b } = await pair();
+    const row = await sendConnectionRequest(a.client, b.id);
+    const args = {
+      p_requester: a.id,
+      p_addressee: b.id,
+      p_created_at: row.created_at,
+      p_action: 'accept',
+    };
+    expect((await a.client.rpc('manage_connection_request', args)).error?.code).toBe('42501');
+    expect(
+      (await resident.client.rpc('manage_connection_request', { ...args, p_action: 'cancel' }))
+        .error?.code,
+    ).toBe('42501');
+    expect(
+      (await a.client.rpc('send_connection_request', { p_target_user: a.id })).error?.code,
+    ).toBe('22023');
+    expect(
+      (await newClient().rpc('send_connection_request', { p_target_user: a.id })).error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await a.client
+          .from('connections')
+          .insert({ requester_id: a.id, addressee_id: b.id, status: 'accepted' })
+      ).error?.code,
+    ).toBe('42501');
+    expect(
+      (await b.client.from('connections').update({ status: 'accepted' }).eq('requester_id', a.id))
+        .error?.code,
+    ).toBe('42501');
+    expect((await a.client.from('connections').delete().eq('requester_id', a.id)).error?.code).toBe(
+      '42501',
+    );
+    await rejectConnectionRequest(b.client, connectionRequestRef(row));
+    await rejectConnectionRequest(b.client, connectionRequestRef(row));
+    const fresh = await sendConnectionRequest(a.client, b.id);
+    expect(fresh.created_at).not.toBe(row.created_at);
+    await expect(
+      cancelConnectionRequest(a.client, connectionRequestRef(row)),
+    ).rejects.toMatchObject({ code: '40001' });
+    await cancelConnectionRequest(a.client, connectionRequestRef(fresh));
+    await cancelConnectionRequest(a.client, connectionRequestRef(fresh));
+    const latest = await sendConnectionRequest(a.client, b.id);
+    await acceptConnectionRequest(b.client, connectionRequestRef(latest));
+    await expect(
+      cancelConnectionRequest(a.client, connectionRequestRef(latest)),
+    ).rejects.toMatchObject({ code: '40001' });
+    await expect(
+      rejectConnectionRequest(b.client, connectionRequestRef(latest)),
+    ).rejects.toMatchObject({ code: '40001' });
+  });
+
+  it('removes connections when blocked and does not restore friendships after unblocking', async () => {
+    const { a, b } = await pair();
+    const row = await sendConnectionRequest(a.client, b.id);
+    await acceptConnectionRequest(b.client, connectionRequestRef(row));
+    const block = await b.client.from('blocks').insert({ blocker_id: b.id, blocked_id: a.id });
+    if (block.error) throw block.error;
+    expect(
+      (
+        await service
+          .from('connections')
+          .select('*')
+          .eq('requester_id', a.id)
+          .eq('addressee_id', b.id)
+      ).data,
+    ).toEqual([]);
+    expect((await listConnections(a.client)).connections).toEqual([]);
+    expect(
+      (await findConnectionPeople(a.client, { query: `friend-${pairNumber}-` })).people,
+    ).toEqual([]);
+    await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+    await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: '42501' });
+    const unblock = await b.client.from('blocks').delete().eq('blocked_id', a.id);
+    if (unblock.error) throw unblock.error;
+    expect((await sendConnectionRequest(a.client, b.id)).status).toBe('pending');
+  });
+
+  it('serializes a block racing acceptance and rejects suspended senders/recipients', async () => {
+    const { a, b } = await pair();
+    const row = await sendConnectionRequest(a.client, b.id);
+    await Promise.allSettled([
+      acceptConnectionRequest(b.client, connectionRequestRef(row)),
+      a.client
+        .from('blocks')
+        .insert({ blocker_id: a.id, blocked_id: b.id })
+        .then((result) => {
+          if (result.error) throw result.error;
+        }),
+    ]);
+    expect(
+      (
+        await service
+          .from('connections')
+          .select('*')
+          .eq('requester_id', a.id)
+          .eq('addressee_id', b.id)
+      ).data,
+    ).toEqual([]);
+    await a.client.from('blocks').delete().eq('blocked_id', b.id);
+    await setUserStatus(admin.client, a.id, 'suspended', 'Connection test');
+    try {
+      await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+      await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: 'P0002' });
+    } finally {
+      await setUserStatus(admin.client, a.id, 'active');
+    }
+  });
+
+  it('paginates tied connection timestamps and literal directory searches without leaking third-party relationships', async () => {
+    const owner = await userWithRole('friend-page-owner', 'resident');
+    const peers = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => userWithRole(`friend-page-%_${i}`, 'resident')),
+    );
+    const created_at = new Date().toISOString();
+    const inserted = await service.from('connections').insert(
+      peers.map((peer, i) => ({
+        requester_id: i % 2 ? peer.id : owner.id,
+        addressee_id: i % 2 ? owner.id : peer.id,
+        created_at,
+      })),
+    );
+    if (inserted.error) throw inserted.error;
+    const seen: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listConnections>>['nextCursor'] = null;
+    for (let i = 0; i < 4; i++) {
+      const page = await listConnections(owner.client, { limit: 2, cursor });
+      seen.push(...page.connections.map((row) => `${row.requester_id}/${row.addressee_id}`));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(cursor).toBeNull();
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+    const first = await findConnectionPeople(owner.client, { query: 'friend-page-%_', limit: 2 });
+    const second = await findConnectionPeople(owner.client, {
+      query: 'friend-page-%_',
+      limit: 2,
+      cursor: first.nextCursor,
+    });
+    expect(first.people).toHaveLength(2);
+    expect(second.people).toHaveLength(2);
+    expect(new Set([...first.people, ...second.people].map((row) => row.profile.id)).size).toBe(4);
+    expect(
+      (await listConnections(resident.client)).connections.some(
+        (row) => row.requester_id === owner.id || row.addressee_id === owner.id,
+      ),
+    ).toBe(false);
   });
 });

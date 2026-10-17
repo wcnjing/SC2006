@@ -11,7 +11,7 @@ import {
   communityStyles as styles,
   communityText as text,
 } from './communityUi';
-import { useModerationPage } from './useModerationPage';
+import { useCommunityPage } from './useCommunityPage';
 
 function Queue() {
   const [status, setStatus] = useState<ModerationStatus>('open');
@@ -22,7 +22,7 @@ function Queue() {
     },
     [status],
   );
-  const queue = useModerationPage(load);
+  const queue = useCommunityPage(load);
   return (
     <FlatList
       style={styles.screen}

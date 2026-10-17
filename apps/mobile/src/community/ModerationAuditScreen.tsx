@@ -8,14 +8,14 @@ import {
   communityStyles as styles,
   communityText as text,
 } from './communityUi';
-import { useModerationPage } from './useModerationPage';
+import { useCommunityPage } from './useCommunityPage';
 
 async function load(signal: AbortSignal, cursor: number | null) {
   const page = await listModerationAudit(supabase, { cursor, signal });
   return { items: page.entries, nextCursor: page.nextCursor };
 }
 function Audit() {
-  const history = useModerationPage(load);
+  const history = useCommunityPage(load);
   return (
     <FlatList
       style={styles.screen}

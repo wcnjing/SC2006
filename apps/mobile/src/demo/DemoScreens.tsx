@@ -97,6 +97,7 @@ export function DemoHomeScreen() {
         Open the community feed, choose a neighbourhood and publish your first post.
       </Text>
       <CommunityButton label="Open community feed" onPress={() => router.push('/community')} />
+      <CommunityButton label="Connections" onPress={() => router.push('/connections')} secondary />
       {can(profile, 'report:review') && (
         <CommunityButton
           label="Admin moderation"
