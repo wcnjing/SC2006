@@ -2,6 +2,7 @@
 //   supabase start && npm run test:db
 // Refuses to run against anything but localhost, because it creates users.
 import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '../src/database.types';
@@ -15,6 +16,11 @@ import {
   signUp,
   updateMyProfile,
   type CommunityLinkClient,
+  createPost,
+  getPost,
+  listPosts,
+  updatePost,
+  deletePost,
 } from '../src';
 
 // Connection details come from the running local stack (`supabase status`),
@@ -258,5 +264,160 @@ describe('social rules', () => {
   it('keeps edits to own profile working', async () => {
     const updated = await updateMyProfile(resident.client, { display_name: '  Uncle Tan ' });
     expect(updated.display_name).toBe('Uncle Tan');
+  });
+});
+
+describe('P3 posts and neighbourhood feeds', () => {
+  let neighbourhoodId: number;
+  beforeAll(async () => {
+    const { data, error } = await service
+      .from('neighbourhoods')
+      .insert({ name: `P3 test ${runId}`, lat: 1.3, lng: 103.8 })
+      .select('id')
+      .single();
+    if (error) throw error;
+    neighbourhoodId = data.id;
+  });
+
+  it('reuses the same post when a draft is submitted again after a lost response', async () => {
+    const input = { body: 'Retry me', neighbourhoodId, requestId: randomUUID() };
+    const first = await createPost(resident.client, input);
+    const retry = await createPost(resident.client, input);
+    expect(retry.id).toBe(first.id);
+    const changed = await createPost(resident.client, { ...input, body: 'Changed before retry' });
+    expect(changed.id).toBe(first.id);
+    expect(changed.body).toBe('Changed before retry');
+    await deletePost(resident.client, first.id);
+  });
+
+  it('creates, reads, edits and deletes an own post using the shared API', async () => {
+    const post = await createPost(resident.client, {
+      body: '  Hello neighbourhood  ',
+      neighbourhoodId,
+    });
+    expect(post.body).toBe('Hello neighbourhood');
+    expect(post.author?.display_name).toBeTruthy();
+    expect(post.author && Object.keys(post.author).sort()).toEqual([
+      'avatar_url',
+      'display_name',
+      'id',
+    ]);
+    expect((await getPost(other.client, post.id))?.body).toBe('Hello neighbourhood');
+    await expect(updatePost(other.client, post.id, { body: 'hacked' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(deletePost(other.client, post.id)).rejects.toMatchObject({ code: 'not_found' });
+    expect((await updatePost(resident.client, post.id, { body: 'Updated' })).body).toBe('Updated');
+    await deletePost(resident.client, post.id);
+    expect(await getPost(resident.client, post.id)).toBeNull();
+  });
+
+  it('paginates tied timestamps without duplicates and excludes removed and other-neighbourhood posts', async () => {
+    const createdAt = new Date().toISOString();
+    const { data, error } = await service
+      .from('posts')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          author_id: resident.id,
+          neighbourhood_id: neighbourhoodId,
+          body: `Pagination ${i}`,
+          created_at: createdAt,
+        })),
+      )
+      .select('id');
+    if (error) throw error;
+    const excluded = await service.from('posts').insert([
+      {
+        author_id: resident.id,
+        neighbourhood_id: neighbourhoodId,
+        body: 'Removed',
+        is_removed: true,
+      },
+      { author_id: resident.id, neighbourhood_id: 1, body: 'Other neighbourhood' },
+    ]);
+    if (excluded.error) throw excluded.error;
+    const ids: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listPosts>>['nextCursor'] = null;
+    do {
+      const page = await listPosts(resident.client, { neighbourhoodId, limit: 2, cursor });
+      ids.push(...page.posts.map((post) => post.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+    expect(ids).toEqual(
+      data
+        .map((row) => row.id)
+        .sort()
+        .reverse(),
+    );
+  });
+
+  it('enforces authorship, nonblank bodies and database-owned timestamps for direct clients', async () => {
+    const blank = await resident.client
+      .from('posts')
+      .insert({ author_id: resident.id, body: ' \n\t ' });
+    expect(blank.error?.code).toBe('23514');
+    const spoof = await resident.client
+      .from('posts')
+      .insert({ author_id: other.id, body: 'spoof' });
+    expect(spoof.error?.code).toBe('42501');
+    const backdated = await resident.client
+      .from('posts')
+      .insert({ author_id: resident.id, body: 'backdated', created_at: hourAgo() });
+    expect(backdated.error?.code).toBe('42501');
+    const post = await createPost(resident.client, { body: 'Original', neighbourhoodId });
+    const edit = await other.client
+      .from('posts')
+      .update({ body: 'hacked' })
+      .eq('id', post.id)
+      .select('id');
+    expect(edit.data).toEqual([]);
+    const metadata = await resident.client
+      .from('posts')
+      .update({ is_removed: true })
+      .eq('id', post.id);
+    expect(metadata.error?.code).toBe('42501');
+    await deletePost(resident.client, post.id);
+  });
+
+  it('hides blocked authors and removed content, including from its author in the normal feed', async () => {
+    const post = await createPost(resident.client, { body: 'Visibility', neighbourhoodId });
+    try {
+      const block = await other.client
+        .from('blocks')
+        .insert({ blocker_id: other.id, blocked_id: resident.id });
+      if (block.error) throw block.error;
+      expect(await getPost(other.client, post.id)).toBeNull();
+      expect(
+        (await listPosts(other.client, { neighbourhoodId })).posts.some((p) => p.id === post.id),
+      ).toBe(false);
+    } finally {
+      await other.client.from('blocks').delete().eq('blocked_id', resident.id);
+    }
+    const removal = await service.from('posts').update({ is_removed: true }).eq('id', post.id);
+    if (removal.error) throw removal.error;
+    expect(await getPost(resident.client, post.id)).toBeNull();
+    await expect(updatePost(resident.client, post.id, { body: 'Restore' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    const direct = await resident.client
+      .from('posts')
+      .update({ body: 'Evade moderation' })
+      .eq('id', post.id)
+      .select('id');
+    expect(direct.data).toEqual([]);
+  });
+
+  it('prevents suspended authors from editing and deleting, even with an existing session', async () => {
+    const post = await createPost(other.client, { body: 'Before suspension', neighbourhoodId });
+    await setUserStatus(admin.client, other.id, 'suspended', 'P3 test');
+    try {
+      await expect(
+        updatePost(other.client, post.id, { body: 'After suspension' }),
+      ).rejects.toMatchObject({ code: 'not_found' });
+      await expect(deletePost(other.client, post.id)).rejects.toMatchObject({ code: 'not_found' });
+    } finally {
+      await setUserStatus(admin.client, other.id, 'active');
+    }
+    await deletePost(other.client, post.id);
   });
 });

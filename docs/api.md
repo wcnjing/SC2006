@@ -94,6 +94,12 @@ Clients can only `UPDATE` the columns granted in `*_rls_policies.sql`. To change
 - **P4:** `notify(user_id, type, payload)` as a `security definer` function, called from triggers (activity changed/cancelled, connection request, new DM) so clients can't spam notifications.
 - **P1:** real Singpass (Week 10) sets `profiles.singpass_verified`.
 
+## Posts and feed (P3)
+
+Shared post APIs now implement the Latest neighbourhood feed and author CRUD.
+See [P3 posts and feed](p3-posts-feed.md) for function signatures, routes,
+database protections, verification and integration with the other branches.
+
 ## Errors
 
 API functions throw `ApiError` with a readable `message` and an optional `code`:

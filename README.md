@@ -36,6 +36,25 @@ docs/                API contract and team conventions
    | organiser | `organiser@test.com`, `organiser2@test.com`                     |
    | resident  | `resident@test.com`, `resident2@test.com`, `resident3@test.com` |
 
+## Try posts in the browser without Supabase
+
+From the repository root:
+
+```bash
+npm run web:demo
+```
+
+Select **Continue as Yining**, then **Open community feed**. You can create, edit
+and delete posts, switch neighbourhoods, load older posts, and switch to **Auntie
+Mei** to check the author controls. No Supabase project or `.env` is needed.
+The visible demo banner identifies local data; posts persist in that browser.
+**Reset demo data** on the resident-selection screen restores the sample posts.
+
+This uses the same post screens with a local data service. Real database/RLS
+verification still needs Supabase. Normal `npm run mobile` / `npm run web
+--workspace apps/mobile` use Supabase unless demo mode is explicitly enabled.
+See [P3 posts and feed](docs/p3-posts-feed.md) for details.
+
 ## Using the shared package
 
 Import everything from `@communitylink/shared`. API functions take the Supabase client as their first argument:

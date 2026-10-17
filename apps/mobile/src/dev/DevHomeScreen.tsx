@@ -1,6 +1,7 @@
 // TEMPORARY: proves the end-to-end slice (log in -> profile -> read activities).
 // Replace with the real tab navigation once Summer's shell lands.
 import type { Activity } from '@communitylink/shared';
+import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Button, FlatList, StyleSheet, Text, View } from 'react-native';
 import { RoleGate } from '../auth/RoleGate';
@@ -40,6 +41,9 @@ export function DevHomeScreen() {
         <Text style={styles.badge}>Admin tools available</Text>
       </RoleGate>
 
+      <Link href="/community" style={styles.heading}>
+        Open community feed
+      </Link>
       <Text style={styles.heading}>Upcoming activities</Text>
       {error && <Text style={styles.error}>{error}</Text>}
       <FlatList
