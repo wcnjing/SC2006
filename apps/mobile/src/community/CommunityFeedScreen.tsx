@@ -88,6 +88,11 @@ export function CommunityFeedScreen() {
             onPress={() => router.push('/connections')}
             secondary
           />
+          <CommunityButton
+            label={text.messages}
+            onPress={() => router.push('/messages')}
+            secondary
+          />
         </View>
       }
       ListEmptyComponent={

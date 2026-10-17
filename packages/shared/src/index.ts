@@ -12,3 +12,4 @@ export * from './api/postInteractions';
 export * from './api/reports';
 export * from './api/moderation';
 export * from './api/connections';
+export * from './api/messaging';

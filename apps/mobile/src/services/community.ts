@@ -79,3 +79,22 @@ export const listConnections: typeof api.listConnections = DEMO_MODE
 export const findConnectionPeople: typeof api.findConnectionPeople = DEMO_MODE
   ? (_client, options) => getDemoBackend().findConnectionPeople(options)
   : api.findConnectionPeople;
+
+export const getDirectConversation: typeof api.getDirectConversation = DEMO_MODE
+  ? (_client, id, options) => getDemoBackend().getDirectConversation(id, options)
+  : api.getDirectConversation;
+export const sendDirectMessage: typeof api.sendDirectMessage = DEMO_MODE
+  ? (_client, input) => getDemoBackend().sendDirectMessage(input)
+  : api.sendDirectMessage;
+export const listDirectMessages: typeof api.listDirectMessages = DEMO_MODE
+  ? (_client, id, options) => getDemoBackend().listDirectMessages(id, options)
+  : api.listDirectMessages;
+export const blockUser: typeof api.blockUser = DEMO_MODE
+  ? (_client, id) => getDemoBackend().blockUser(id)
+  : api.blockUser;
+export const unblockUser: typeof api.unblockUser = DEMO_MODE
+  ? (_client, id) => getDemoBackend().unblockUser(id)
+  : api.unblockUser;
+export const listBlockedUsers: typeof api.listBlockedUsers = DEMO_MODE
+  ? (_client, options) => getDemoBackend().listBlockedUsers(options)
+  : api.listBlockedUsers;

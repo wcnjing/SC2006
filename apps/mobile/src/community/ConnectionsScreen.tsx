@@ -7,6 +7,7 @@ import {
   type ConnectionView,
 } from '@communitylink/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { router } from 'expo-router';
 import { ActivityIndicator, FlatList, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
@@ -17,6 +18,7 @@ import {
   acceptConnectionRequest,
   rejectConnectionRequest,
   cancelConnectionRequest,
+  blockUser,
 } from '../services/community';
 import {
   CommunityButton,
@@ -34,15 +36,17 @@ function Person({
   person,
   disabled,
   onChange,
+  onBlocked,
 }: {
   person: PersonRow;
   disabled: boolean;
   onChange: (row: PersonRow, connection: Connection | null) => void;
+  onBlocked: (id: string) => void;
 }) {
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<'reject' | 'cancel' | null>(null);
+  const [confirm, setConfirm] = useState<'reject' | 'cancel' | 'block' | null>(null);
   const busy = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -53,12 +57,17 @@ function Person({
   }, []);
   const connection = person.connection;
   const incoming = connection?.status === 'pending' && connection.addressee_id === profile?.id;
-  async function act(action: 'send' | 'accept' | 'reject' | 'cancel') {
+  async function act(action: 'send' | 'accept' | 'reject' | 'cancel' | 'block') {
     if (busy.current || disabled) return;
     busy.current = true;
     setSaving(true);
     setError(null);
     try {
+      if (action === 'block') {
+        await blockUser(supabase, person.id);
+        if (mounted.current) onBlocked(person.id);
+        return;
+      }
       let updated: Connection | null = null;
       if (action === 'send') updated = await sendConnectionRequest(supabase, person.id);
       else if (connection) {
@@ -89,15 +98,19 @@ function Person({
       {confirm ? (
         <>
           <Text style={styles.body}>
-            {confirm === 'reject' ? text.confirmRejectRequest : text.confirmCancelRequest}
+            {confirm === 'block'
+              ? text.blockHint
+              : confirm === 'reject'
+                ? text.confirmRejectRequest
+                : text.confirmCancelRequest}
           </Text>
           <CommunityButton
-            label={text.confirmRequestAction}
+            label={confirm === 'block' ? text.confirmBlock : text.confirmRequestAction}
             disabled={saving || disabled}
             onPress={() => void act(confirm)}
           />
           <CommunityButton
-            label={text.keepRequest}
+            label={confirm === 'block' ? text.cancelBlockAction : text.keepRequest}
             disabled={saving}
             onPress={() => setConfirm(null)}
             secondary
@@ -128,6 +141,21 @@ function Person({
           label={text.cancelRequest}
           disabled={saving || disabled}
           onPress={() => setConfirm('cancel')}
+          secondary
+        />
+      )}
+      {!confirm && connection?.status === 'accepted' && (
+        <CommunityButton
+          label={text.message}
+          disabled={saving || disabled}
+          onPress={() => router.push({ pathname: '/messages/[id]', params: { id: person.id } })}
+        />
+      )}
+      {!confirm && (
+        <CommunityButton
+          label={text.blockUser}
+          disabled={saving || disabled}
+          onPress={() => setConfirm('block')}
           secondary
         />
       )}
@@ -199,6 +227,16 @@ function Connections({ userId }: { userId: string }) {
           <Text accessibilityRole="header" style={styles.heading}>
             {text.connections}
           </Text>
+          <CommunityButton
+            label={text.messages}
+            onPress={() => router.push('/messages')}
+            secondary
+          />
+          <CommunityButton
+            label={text.blockedUsers}
+            onPress={() => router.push('/blocked-users')}
+            secondary
+          />
           <View style={styles.row}>
             {(['people', 'incoming', 'outgoing', 'friends'] as const).map((value) => (
               <CommunityButton
@@ -274,6 +312,7 @@ function Connections({ userId }: { userId: string }) {
           person={item}
           disabled={profile?.status !== 'active' || list.loading}
           onChange={changed}
+          onBlocked={list.remove}
         />
       )}
     />

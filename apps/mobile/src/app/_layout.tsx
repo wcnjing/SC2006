@@ -22,6 +22,9 @@ function AuthenticatedRoutes() {
       <Stack.Screen name="community" options={{ title: 'Community' }} />
       <Stack.Screen name="reports" options={{ title: 'My reports' }} />
       <Stack.Screen name="connections" options={{ title: 'Connections' }} />
+      <Stack.Screen name="messages/index" options={{ title: 'Messages' }} />
+      <Stack.Screen name="messages/[id]" options={{ title: 'Conversation' }} />
+      <Stack.Screen name="blocked-users" options={{ title: 'Blocked users' }} />
       <Stack.Screen name="admin/moderation/index" options={{ title: 'Admin moderation' }} />
       <Stack.Screen name="admin/moderation/[id]" options={{ title: 'Review report' }} />
       <Stack.Screen name="admin/audit" options={{ title: 'Moderation audit log' }} />

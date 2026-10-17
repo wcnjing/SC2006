@@ -123,7 +123,7 @@ upload and multiple images need agreed schema/storage additions.
 [Post/comment reports and personal history](p3-reports.md) are implemented in
 the next increment. [Admin moderation and audit](p3-moderation.md) are also
 implemented. [Connections and friend requests](p3-connections.md) are implemented
-as well. Messaging and blocking screens remain separate P3 work.
+as well. [Direct messages and blocking](p3-messaging-blocking.md) are also implemented.
 
 ## Verification
 

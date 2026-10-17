@@ -90,7 +90,7 @@ Clients can only `UPDATE` the columns granted in `*_rls_policies.sql`. To change
 ## Open items for each owner
 
 - **P2:** enforce `capacity` when joining (trigger or RPC). Add the recommendation query/RPC. Add dataset import with `source = 'dataset'` and `external_id`.
-- **P3:** messaging and blocking screens remain. Connection request RPCs and block cleanup triggers, reporting and audited admin moderation are implemented below.
+- **P3:** social APIs/screens are implemented below; verify migrations and integration with P1.
 - **P4:** `notify(user_id, type, payload)` as a `security definer` function, called from triggers (activity changed/cancelled, connection request, new DM) so clients can't spam notifications.
 - **P1:** real Singpass (Week 10) sets `profiles.singpass_verified`.
 
@@ -144,6 +144,21 @@ active status, blocking and state transitions are enforced by the request RPCs;
 clients cannot write relationship state directly. Accept creates a friendship;
 reject/cancel delete a pending row. See [P3 connections](p3-connections.md) for
 the `/connections` screen, migration and concurrency rules.
+
+## DMs and blocking (P3)
+
+`sendDirectMessage(client, { recipientId, body, requestId? })` sends text between
+active, accepted, unblocked connections. `listDirectMessages` paginates the
+current participant pair; `getDirectConversation` exposes public peer details
+and messaging permission flags. Blocking hides retained message history until
+the users reconnect.
+
+`blockUser` and `unblockUser` change only the caller's block through
+`set_user_block`. Blocking removes the connection in the same transaction;
+unblocking does not restore it. `listBlockedUsers` returns private, paginated
+block history. Direct message inserts and block writes are revoked in the new
+migration. See [P3 DMs and blocking](p3-messaging-blocking.md) for routes,
+permissions, retry semantics and verification.
 
 ## Errors
 

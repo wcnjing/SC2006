@@ -42,8 +42,9 @@ Every shared function takes the typed Supabase client first.
 
 Requests use the existing `pending` and `accepted` states. Reject/cancel remove
 the pending row, so another request may be sent later. There is no rejected or
-cancelled history row. Accepted friendships cannot be deleted by these actions;
-unfriend, messaging, blocking screens and notifications are separate work.
+cancelled history row. Accepted friendships cannot be deleted by these actions.
+[Messaging and blocking screens](p3-messaging-blocking.md) are implemented in the
+next increment; unfriend and notifications remain separate work.
 
 The action reference includes the original server timestamp at full precision.
 A stale reject/cancel cannot delete a replacement request; an action against a

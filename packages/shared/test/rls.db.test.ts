@@ -40,6 +40,12 @@ import {
   listConnections,
   findConnectionPeople,
   connectionRequestRef,
+  sendDirectMessage,
+  listDirectMessages,
+  getDirectConversation,
+  blockUser,
+  unblockUser,
+  listBlockedUsers,
 } from '../src';
 
 // Connection details come from the running local stack (`supabase status`),
@@ -231,23 +237,29 @@ describe('social rules', () => {
     const before = await resident.client.from('posts').select('id').eq('id', post!.id);
     expect(before.data).toHaveLength(1);
 
-    await resident.client.from('blocks').insert({ blocker_id: resident.id, blocked_id: other.id });
+    await blockUser(resident.client, other.id);
     const after = await resident.client.from('posts').select('id').eq('id', post!.id);
     expect(after.data).toHaveLength(0);
 
-    await resident.client.from('blocks').delete().eq('blocked_id', other.id);
+    await unblockUser(resident.client, other.id);
   });
 
   it('only allows DMs between accepted connections', async () => {
     const dm = { sender_id: resident.id, recipient_id: organiser.id, body: 'hello' };
     const blocked = await resident.client.from('messages').insert(dm);
     expect(blocked.error?.code).toBe('42501');
+    await expect(
+      sendDirectMessage(resident.client, { recipientId: organiser.id, body: dm.body }),
+    ).rejects.toMatchObject({ code: '42501' });
 
     const request = await sendConnectionRequest(resident.client, organiser.id);
     await acceptConnectionRequest(organiser.client, connectionRequestRef(request));
 
-    const allowed = await resident.client.from('messages').insert(dm);
-    expect(allowed.error).toBeNull();
+    const allowed = await sendDirectMessage(resident.client, {
+      recipientId: organiser.id,
+      body: dm.body,
+    });
+    expect(allowed.sender_id).toBe(resident.id);
   });
 
   it('only lets participants rate activities that have ended', async () => {
@@ -396,16 +408,13 @@ describe('P3 posts and neighbourhood feeds', () => {
   it('hides blocked authors and removed content, including from its author in the normal feed', async () => {
     const post = await createPost(resident.client, { body: 'Visibility', neighbourhoodId });
     try {
-      const block = await other.client
-        .from('blocks')
-        .insert({ blocker_id: other.id, blocked_id: resident.id });
-      if (block.error) throw block.error;
+      await blockUser(other.client, resident.id);
       expect(await getPost(other.client, post.id)).toBeNull();
       expect(
         (await listPosts(other.client, { neighbourhoodId })).posts.some((p) => p.id === post.id),
       ).toBe(false);
     } finally {
-      await other.client.from('blocks').delete().eq('blocked_id', resident.id);
+      await unblockUser(other.client, resident.id);
     }
     const removal = await service.from('posts').update({ is_removed: true }).eq('id', post.id);
     if (removal.error) throw removal.error;
@@ -518,10 +527,7 @@ describe('P3 comments and likes', () => {
     const post = await createPost(resident.client, { body: 'Visibility', neighbourhoodId: 1 });
     const comment = await createComment(other.client, { postId: post.id, body: 'Own comment' });
     await setPostLiked(other.client, post.id, true);
-    const block = await other.client
-      .from('blocks')
-      .insert({ blocker_id: other.id, blocked_id: resident.id });
-    if (block.error) throw block.error;
+    await blockUser(other.client, resident.id);
     try {
       expect((await listComments(other.client, post.id)).comments).toEqual([]);
       await expect(getPostLikeState(other.client, post.id)).rejects.toMatchObject({
@@ -534,7 +540,7 @@ describe('P3 comments and likes', () => {
         code: 'not_found',
       });
     } finally {
-      await other.client.from('blocks').delete().eq('blocked_id', resident.id);
+      await unblockUser(other.client, resident.id);
     }
     const removal = await service.from('posts').update({ is_removed: true }).eq('id', post.id);
     if (removal.error) throw removal.error;
@@ -712,17 +718,14 @@ describe('P3 reports', () => {
     });
     const postInput = { targetType: 'post' as const, targetId: post.id, reason: 'Spam' };
     const commentInput = { targetType: 'comment' as const, targetId: comment.id, reason: 'Spam' };
-    const block = await other.client
-      .from('blocks')
-      .insert({ blocker_id: other.id, blocked_id: resident.id });
-    if (block.error) throw block.error;
+    await blockUser(other.client, resident.id);
     try {
       await expect(submitReport(other.client, postInput)).rejects.toMatchObject({ code: '42501' });
       await expect(submitReport(other.client, commentInput)).rejects.toMatchObject({
         code: '42501',
       });
     } finally {
-      await other.client.from('blocks').delete().eq('blocked_id', resident.id);
+      await unblockUser(other.client, resident.id);
     }
     await setUserStatus(admin.client, other.id, 'suspended', 'Report test');
     try {
@@ -1072,8 +1075,7 @@ describe('P3 connections', () => {
     const { a, b } = await pair();
     const row = await sendConnectionRequest(a.client, b.id);
     await acceptConnectionRequest(b.client, connectionRequestRef(row));
-    const block = await b.client.from('blocks').insert({ blocker_id: b.id, blocked_id: a.id });
-    if (block.error) throw block.error;
+    await blockUser(b.client, a.id);
     expect(
       (
         await service
@@ -1089,8 +1091,7 @@ describe('P3 connections', () => {
     ).toEqual([]);
     await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
     await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: '42501' });
-    const unblock = await b.client.from('blocks').delete().eq('blocked_id', a.id);
-    if (unblock.error) throw unblock.error;
+    await unblockUser(b.client, a.id);
     expect((await sendConnectionRequest(a.client, b.id)).status).toBe('pending');
   });
 
@@ -1099,12 +1100,7 @@ describe('P3 connections', () => {
     const row = await sendConnectionRequest(a.client, b.id);
     await Promise.allSettled([
       acceptConnectionRequest(b.client, connectionRequestRef(row)),
-      a.client
-        .from('blocks')
-        .insert({ blocker_id: a.id, blocked_id: b.id })
-        .then((result) => {
-          if (result.error) throw result.error;
-        }),
+      blockUser(a.client, b.id),
     ]);
     expect(
       (
@@ -1115,7 +1111,7 @@ describe('P3 connections', () => {
           .eq('addressee_id', b.id)
       ).data,
     ).toEqual([]);
-    await a.client.from('blocks').delete().eq('blocked_id', b.id);
+    await unblockUser(a.client, b.id);
     await setUserStatus(admin.client, a.id, 'suspended', 'Connection test');
     try {
       await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
@@ -1164,5 +1160,172 @@ describe('P3 connections', () => {
         (row) => row.requester_id === owner.id || row.addressee_id === owner.id,
       ),
     ).toBe(false);
+  });
+});
+
+describe('P3 DMs and blocking', () => {
+  let counter = 0;
+  async function pair(accept = true) {
+    const n = ++counter;
+    const [a, b] = await Promise.all([
+      userWithRole(`dm-${n}-a`, 'resident'),
+      userWithRole(`dm-${n}-b`, 'resident'),
+    ]);
+    const request = await sendConnectionRequest(a.client, b.id);
+    if (accept) await acceptConnectionRequest(b.client, connectionRequestRef(request));
+    return { a, b, request };
+  }
+
+  it('sends two-way messages only after acceptance, deduplicates concurrent retries and keeps reads private', async () => {
+    const { a, b, request } = await pair(false);
+    const input = { recipientId: b.id, body: 'Hello', requestId: randomUUID() };
+    await expect(sendDirectMessage(a.client, input)).rejects.toMatchObject({ code: '42501' });
+    await acceptConnectionRequest(b.client, connectionRequestRef(request));
+    const [one, retry] = await Promise.all([
+      sendDirectMessage(a.client, input),
+      sendDirectMessage(a.client, input),
+    ]);
+    expect(one.id).toBe(retry.id);
+    await sendDirectMessage(b.client, { recipientId: a.id, body: 'Reply' });
+    expect((await listDirectMessages(a.client, b.id)).messages.map((row) => row.body)).toEqual([
+      'Hello',
+      'Reply',
+    ]);
+    expect((await listDirectMessages(b.client, a.id)).messages).toHaveLength(2);
+    expect((await listDirectMessages(admin.client, a.id)).messages).toEqual([]);
+    expect((await admin.client.from('messages').select('id').eq('id', one.id)).data).toEqual([]);
+    expect(await getDirectConversation(a.client, b.id)).toMatchObject({
+      connected: true,
+      blockedByMe: false,
+      canSend: true,
+    });
+    await expect(
+      sendDirectMessage(a.client, { ...input, body: 'Changed retry' }),
+    ).rejects.toMatchObject({ code: '40001' });
+    expect((await service.from('messages').select('id').eq('id', one.id)).data).toHaveLength(1);
+  });
+
+  it('blocks atomically, hides retained messages, and requires reconnection after unblocking', async () => {
+    const { a, b } = await pair();
+    const sent = await sendDirectMessage(a.client, { recipientId: b.id, body: 'History' });
+    await blockUser(a.client, b.id);
+    await blockUser(a.client, b.id);
+    expect((await listConnections(a.client)).connections).toEqual([]);
+    expect((await listDirectMessages(a.client, b.id)).messages).toEqual([]);
+    expect((await b.client.from('messages').select('id').eq('id', sent.id)).data).toEqual([]);
+    expect((await service.from('messages').select('id').eq('id', sent.id)).data).toHaveLength(1);
+    expect((await listBlockedUsers(a.client)).users.map((row) => row.id)).toEqual([b.id]);
+    expect((await listBlockedUsers(b.client)).users).toEqual([]);
+    await expect(
+      sendDirectMessage(a.client, { recipientId: b.id, body: 'History', requestId: sent.id }),
+    ).rejects.toMatchObject({ code: '42501' });
+    await unblockUser(b.client, a.id); // Cannot remove a block owned by someone else.
+    expect((await listBlockedUsers(a.client)).users).toHaveLength(1);
+    await blockUser(b.client, a.id);
+    await unblockUser(a.client, b.id);
+    await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+    await unblockUser(b.client, a.id);
+    expect((await getDirectConversation(a.client, b.id))?.connected).toBe(false);
+    expect((await listDirectMessages(a.client, b.id)).messages).toEqual([]);
+    const fresh = await sendConnectionRequest(a.client, b.id);
+    await acceptConnectionRequest(b.client, connectionRequestRef(fresh));
+    expect((await listDirectMessages(a.client, b.id)).messages[0]?.body).toBe('History');
+  });
+
+  it('denies forged message/block writes, invalid messages and suspended sessions', async () => {
+    const { a, b } = await pair();
+    expect(
+      (
+        await a.client
+          .from('messages')
+          .insert({ sender_id: b.id, recipient_id: a.id, body: 'Forged', created_at: hourAgo() })
+      ).error?.code,
+    ).toBe('42501');
+    expect(
+      (await a.client.from('blocks').insert({ blocker_id: b.id, blocked_id: a.id })).error?.code,
+    ).toBe('42501');
+    expect((await a.client.from('blocks').delete().eq('blocked_id', b.id)).error?.code).toBe(
+      '42501',
+    );
+    expect(
+      (await newClient().rpc('set_user_block', { p_target_user: b.id, p_blocked: true })).error
+        ?.code,
+    ).toBe('42501');
+    expect(
+      (await a.client.rpc('set_user_block', { p_target_user: a.id, p_blocked: true })).error?.code,
+    ).toBe('22023');
+    for (const p_body of [' \n\t ', 'x'.repeat(2001)])
+      expect(
+        (await a.client.rpc('send_direct_message', { p_recipient: b.id, p_body })).error?.code,
+      ).toBe('22023');
+    await setUserStatus(admin.client, a.id, 'suspended', 'DM test');
+    try {
+      await expect(
+        sendDirectMessage(a.client, { recipientId: b.id, body: 'Denied' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        sendDirectMessage(b.client, { recipientId: a.id, body: 'Denied' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(blockUser(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+      await expect(unblockUser(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await setUserStatus(admin.client, a.id, 'active');
+    }
+  });
+
+  it('serializes sending against blocking so no messages remain readable after the block', async () => {
+    const { a, b } = await pair();
+    const outcomes = await Promise.allSettled([
+      sendDirectMessage(a.client, { recipientId: b.id, body: 'Racing message' }),
+      blockUser(b.client, a.id),
+    ]);
+    expect(outcomes[1]?.status).toBe('fulfilled');
+    expect((await listConnections(a.client)).connections).toEqual([]);
+    expect((await listDirectMessages(a.client, b.id)).messages).toEqual([]);
+    await expect(
+      sendDirectMessage(a.client, { recipientId: b.id, body: 'After blocking' }),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('paginates tied message timestamps and personal block history without duplicates', async () => {
+    const { a, b } = await pair();
+    const created_at = new Date().toISOString();
+    const inserted = await service
+      .from('messages')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          sender_id: i % 2 ? b.id : a.id,
+          recipient_id: i % 2 ? a.id : b.id,
+          body: `Page ${i}`,
+          created_at,
+        })),
+      )
+      .select('id');
+    if (inserted.error) throw inserted.error;
+    const ids: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listDirectMessages>>['nextCursor'] = null;
+    for (let i = 0; i < 4; i++) {
+      const page = await listDirectMessages(a.client, b.id, { limit: 2, cursor });
+      ids.unshift(...page.messages.map((row) => row.id));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(ids).toEqual(inserted.data.map((row) => row.id).sort());
+    const targets = await Promise.all(
+      Array.from({ length: 3 }, (_, i) => userWithRole(`dm-block-page-${i}`, 'resident')),
+    );
+    for (const target of targets) await blockUser(a.client, target.id);
+    const tie = await service.from('blocks').update({ created_at }).eq('blocker_id', a.id);
+    if (tie.error) throw tie.error;
+    const first = await listBlockedUsers(a.client, { limit: 2 });
+    const second = await listBlockedUsers(a.client, { limit: 2, cursor: first.nextCursor });
+    expect([...first.users, ...second.users].map((row) => row.id)).toEqual(
+      targets
+        .map((target) => target.id)
+        .sort()
+        .reverse(),
+    );
+    expect(second.nextCursor).toBeNull();
+    expect((await listBlockedUsers(b.client)).users).toEqual([]);
   });
 });

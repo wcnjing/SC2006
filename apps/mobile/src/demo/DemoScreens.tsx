@@ -98,6 +98,7 @@ export function DemoHomeScreen() {
       </Text>
       <CommunityButton label="Open community feed" onPress={() => router.push('/community')} />
       <CommunityButton label="Connections" onPress={() => router.push('/connections')} secondary />
+      <CommunityButton label="Messages" onPress={() => router.push('/messages')} secondary />
       {can(profile, 'report:review') && (
         <CommunityButton
           label="Admin moderation"

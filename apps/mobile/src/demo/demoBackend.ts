@@ -43,6 +43,13 @@ import {
   type ConnectionPeopleOptions,
   type ConnectionPeoplePage,
   connectionRequestRef,
+  type Message,
+  type SendDirectMessageInput,
+  type DirectMessageOptions,
+  type DirectMessagePage,
+  type DirectConversation,
+  type BlockedUserPage,
+  validateDirectMessageBody,
 } from '@communitylink/shared';
 
 export const DEMO_STORAGE_KEY = 'communitylink-p3-demo-v1';
@@ -58,6 +65,7 @@ type DemoState = {
   connections: Connection[];
   blocks: Block[];
   connectionClock: number;
+  messages: Message[];
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -118,6 +126,7 @@ function seed(): DemoState {
     connections: [],
     blocks: [],
     connectionClock: 0,
+    messages: [],
     posts: Array.from({ length: 27 }, (_, index) => {
       const createdAt = new Date(now - index * 60000).toISOString();
       return {
@@ -164,6 +173,7 @@ export function createDemoBackend(storage: DemoStorage) {
         (state.audit !== undefined && !Array.isArray(state.audit)) ||
         (state.connections !== undefined && !Array.isArray(state.connections)) ||
         (state.blocks !== undefined && !Array.isArray(state.blocks)) ||
+        (state.messages !== undefined && !Array.isArray(state.messages)) ||
         (state.userId !== null &&
           !DEMO_ACCOUNTS.some((account) => account.profile.id === state.userId))
       )
@@ -181,6 +191,7 @@ export function createDemoBackend(storage: DemoStorage) {
         connections: state.connections ?? [],
         blocks: state.blocks ?? [],
         connectionClock: state.connectionClock ?? 0,
+        messages: state.messages ?? [],
       };
       if (
         state.comments === undefined ||
@@ -190,6 +201,7 @@ export function createDemoBackend(storage: DemoStorage) {
         state.connections === undefined ||
         state.blocks === undefined ||
         state.connectionClock === undefined ||
+        state.messages === undefined ||
         state.reports.some((row) => row.reviewed_by === undefined)
       )
         write(upgraded);
@@ -224,6 +236,21 @@ export function createDemoBackend(storage: DemoStorage) {
         (row.blocker_id === a && row.blocked_id === b) ||
         (row.blocker_id === b && row.blocked_id === a),
     );
+  }
+  function connected(state: DemoState, a: string, b: string) {
+    return (
+      !blocked(state, a, b) &&
+      state.connections.some(
+        (row) =>
+          row.status === 'accepted' &&
+          ((row.requester_id === a && row.addressee_id === b) ||
+            (row.requester_id === b && row.addressee_id === a)),
+      )
+    );
+  }
+  function visibleAuthor(state: DemoState, authorId: string) {
+    const me = requireProfile(state);
+    return me.id === authorId || can(me, 'report:review') || !blocked(state, me.id, authorId);
   }
   function connectionPerson(id: string) {
     const current = DEMO_ACCOUNTS.find((row) => row.profile.id === id)?.profile;
@@ -370,7 +397,9 @@ export function createDemoBackend(storage: DemoStorage) {
 
   function visiblePost(state: DemoState, id: string): Post {
     requireProfile(state);
-    const post = state.posts.find((row) => row.id === id && !row.is_removed);
+    const post = state.posts.find(
+      (row) => row.id === id && !row.is_removed && visibleAuthor(state, row.author_id),
+    );
     if (!post) throw new ApiError('This post is unavailable.', 'not_found');
     return post;
   }
@@ -441,7 +470,12 @@ export function createDemoBackend(storage: DemoStorage) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 50)
         throw new ApiError('Invalid page size.', 'validation');
       const rows = state.posts
-        .filter((post) => !post.is_removed && post.neighbourhood_id === neighbourhoodId)
+        .filter(
+          (post) =>
+            !post.is_removed &&
+            post.neighbourhood_id === neighbourhoodId &&
+            visibleAuthor(state, post.author_id),
+        )
         .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
         .filter(
           (post) =>
@@ -464,7 +498,9 @@ export function createDemoBackend(storage: DemoStorage) {
       signal?.throwIfAborted();
       const state = read();
       requireProfile(state);
-      const post = state.posts.find((row) => row.id === id && !row.is_removed);
+      const post = state.posts.find(
+        (row) => row.id === id && !row.is_removed && visibleAuthor(state, row.author_id),
+      );
       return post ? hydrate(post) : null;
     },
     async createPost(input: CreatePostInput): Promise<CommunityPost> {
@@ -526,7 +562,12 @@ export function createDemoBackend(storage: DemoStorage) {
       if (!Number.isInteger(limit) || limit < 1 || limit > 50)
         throw new ApiError('Invalid comment page size.', 'validation');
       const rows = state.comments
-        .filter((comment) => comment.post_id === postId && !comment.is_removed)
+        .filter(
+          (comment) =>
+            comment.post_id === postId &&
+            !comment.is_removed &&
+            visibleAuthor(state, comment.author_id),
+        )
         .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
         .filter(
           (comment) =>
@@ -621,7 +662,8 @@ export function createDemoBackend(storage: DemoStorage) {
       if (input.targetType === 'post') visiblePost(state, input.targetId);
       else {
         const comment = state.comments.find((row) => row.id === input.targetId && !row.is_removed);
-        if (!comment) throw new ApiError('This comment is unavailable.', 'not_found');
+        if (!comment || !visibleAuthor(state, comment.author_id))
+          throw new ApiError('This comment is unavailable.', 'not_found');
         visiblePost(state, comment.post_id);
       }
       const report: Report = {
@@ -960,6 +1002,179 @@ export function createDemoBackend(storage: DemoStorage) {
           ) ?? null,
       }));
       return { people, nextCursor: rows.length > limit ? people.at(-1)!.profile.id : null };
+    },
+    async getDirectConversation(
+      userId: string,
+      { signal }: { signal?: AbortSignal } = {},
+    ): Promise<DirectConversation | null> {
+      signal?.throwIfAborted();
+      const state = read();
+      const me = requireProfile(state);
+      if (!UUID.test(userId) || userId === me.id)
+        throw new ApiError('Choose another resident.', 'validation');
+      const peer = DEMO_ACCOUNTS.find((account) => account.profile.id === userId)?.profile;
+      if (!peer) return null;
+      const accepted = connected(state, me.id, userId);
+      return {
+        profile: connectionPerson(userId)!,
+        connected: accepted,
+        blockedByMe: state.blocks.some(
+          (row) => row.blocker_id === me.id && row.blocked_id === userId,
+        ),
+        canSend: accepted && me.status === 'active' && peer.status === 'active',
+      };
+    },
+    async sendDirectMessage(input: SendDirectMessageInput): Promise<Message> {
+      const invalid = validateDirectMessageBody(input.body);
+      if (invalid) throw new ApiError(invalid, 'validation');
+      const id = input.requestId ?? (await import('expo-crypto')).randomUUID();
+      if (!UUID.test(id) || !UUID.test(input.recipientId))
+        throw new ApiError('Invalid resident or message ID.', 'validation');
+      // Read after UUID generation so concurrent calls cannot overwrite old state.
+      const state = read();
+      const sender = requireActive(state);
+      if (sender.id === input.recipientId)
+        throw new ApiError('Choose another resident.', 'validation');
+      const peer = DEMO_ACCOUNTS.find(
+        (account) => account.profile.id === input.recipientId,
+      )?.profile;
+      if (!connected(state, sender.id, input.recipientId) || peer?.status !== 'active')
+        throw new ApiError(
+          'Messaging is unavailable. You need an accepted, unblocked connection.',
+          '42501',
+        );
+      const existing = state.messages.find((row) => row.id === id);
+      if (existing) {
+        if (
+          existing.sender_id !== sender.id ||
+          existing.recipient_id !== input.recipientId ||
+          existing.body !== input.body.trim() ||
+          existing.shared_post_id !== null
+        )
+          throw new ApiError(
+            'This message ID was already used. Refresh the conversation before starting a new message.',
+            '40001',
+          );
+        return { ...existing };
+      }
+      const row: Message = {
+        id,
+        sender_id: sender.id,
+        recipient_id: input.recipientId,
+        body: input.body.trim(),
+        created_at: timestamp(state),
+        shared_post_id: null,
+        read_at: null,
+      };
+      state.messages.push(row);
+      write(state);
+      return { ...row };
+    },
+    async listDirectMessages(
+      userId: string,
+      { limit = 20, cursor, signal }: DirectMessageOptions = {},
+    ): Promise<DirectMessagePage> {
+      signal?.throwIfAborted();
+      const state = read();
+      const me = requireProfile(state);
+      if (
+        !UUID.test(userId) ||
+        userId === me.id ||
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        (cursor && (!UUID.test(cursor.id) || !Number.isFinite(Date.parse(cursor.createdAt))))
+      )
+        throw new ApiError('Invalid conversation or page.', 'validation');
+      if (!connected(state, me.id, userId)) return { messages: [], nextCursor: null };
+      const rows = state.messages
+        .filter(
+          (row) =>
+            (row.sender_id === me.id && row.recipient_id === userId) ||
+            (row.sender_id === userId && row.recipient_id === me.id),
+        )
+        .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+        .filter(
+          (row) =>
+            !cursor ||
+            row.created_at < cursor.createdAt ||
+            (row.created_at === cursor.createdAt && row.id < cursor.id),
+        );
+      const messages = rows
+        .slice(0, limit)
+        .reverse()
+        .map((row) => ({ ...row }));
+      const oldest = messages[0];
+      return {
+        messages,
+        nextCursor:
+          rows.length > limit && oldest ? { createdAt: oldest.created_at, id: oldest.id } : null,
+      };
+    },
+    async blockUser(userId: string): Promise<void> {
+      const state = read();
+      const me = requireActive(state);
+      if (!UUID.test(userId) || userId === me.id)
+        throw new ApiError('Choose another resident.', 'validation');
+      if (!connectionPerson(userId)) throw new ApiError('Resident not found.', 'P0002');
+      if (!state.blocks.some((row) => row.blocker_id === me.id && row.blocked_id === userId))
+        state.blocks.push({ blocker_id: me.id, blocked_id: userId, created_at: timestamp(state) });
+      state.connections = state.connections.filter(
+        (row) =>
+          !(
+            (row.requester_id === me.id && row.addressee_id === userId) ||
+            (row.requester_id === userId && row.addressee_id === me.id)
+          ),
+      );
+      write(state);
+    },
+    async unblockUser(userId: string): Promise<void> {
+      const state = read();
+      const me = requireActive(state);
+      if (!UUID.test(userId) || userId === me.id)
+        throw new ApiError('Choose another resident.', 'validation');
+      state.blocks = state.blocks.filter(
+        (row) => row.blocker_id !== me.id || row.blocked_id !== userId,
+      );
+      write(state);
+    },
+    async listBlockedUsers({
+      limit = 20,
+      cursor,
+      signal,
+    }: DirectMessageOptions = {}): Promise<BlockedUserPage> {
+      signal?.throwIfAborted();
+      const state = read();
+      const me = requireProfile(state);
+      if (
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        (cursor && (!UUID.test(cursor.id) || !Number.isFinite(Date.parse(cursor.createdAt))))
+      )
+        throw new ApiError('Invalid blocked-users page.', 'validation');
+      const rows = state.blocks
+        .filter((row) => row.blocker_id === me.id)
+        .sort(
+          (a, b) =>
+            b.created_at.localeCompare(a.created_at) || b.blocked_id.localeCompare(a.blocked_id),
+        )
+        .filter(
+          (row) =>
+            !cursor ||
+            row.created_at < cursor.createdAt ||
+            (row.created_at === cursor.createdAt && row.blocked_id < cursor.id),
+        );
+      const users = rows.slice(0, limit).map((row) => ({
+        id: row.blocked_id,
+        createdAt: row.created_at,
+        profile: connectionPerson(row.blocked_id),
+      }));
+      const last = users.at(-1);
+      return {
+        users,
+        nextCursor: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+      };
     },
     async setPostLiked(postId: string, liked: boolean): Promise<PostLikeState> {
       const state = read();

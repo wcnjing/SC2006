@@ -689,6 +689,23 @@ export type Database = {
         Args: { user_a: string; user_b: string };
         Returns: boolean;
       };
+      send_direct_message: {
+        Args: { p_recipient: string; p_body: string; p_request_id?: string };
+        Returns: Database['public']['Tables']['messages']['Row'][];
+      };
+      set_user_block: { Args: { p_target_user: string; p_blocked: boolean }; Returns: boolean };
+      get_direct_conversation: {
+        Args: { p_other_user: string };
+        Returns: {
+          id: string;
+          display_name: string;
+          avatar_url: string | null;
+          neighbourhood_id: number | null;
+          connected: boolean;
+          blocked_by_me: boolean;
+          can_send: boolean;
+        }[];
+      };
       send_connection_request: {
         Args: { p_target_user: string };
         Returns: Database['public']['Tables']['connections']['Row'][];
