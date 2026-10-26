@@ -126,6 +126,27 @@ export type Database = {
           },
         ];
       };
+      activity_bookmarks: {
+        Row: { activity_id: string; user_id: string; created_at: string };
+        Insert: { activity_id: string; user_id: string; created_at?: string };
+        Update: { activity_id?: string; user_id?: string; created_at?: string };
+        Relationships: [
+          {
+            foreignKeyName: 'activity_bookmarks_activity_id_fkey';
+            columns: ['activity_id'];
+            isOneToOne: false;
+            referencedRelation: 'activities';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'activity_bookmarks_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       activity_participants: {
         Row: {
           activity_id: string;
@@ -700,6 +721,14 @@ export type Database = {
         Returns: boolean;
       };
       is_organiser: { Args: never; Returns: boolean };
+      skip_activity: {
+        Args: { target_activity: string };
+        Returns: boolean;
+      };
+      set_activity_registration: {
+        Args: { target_activity: string; should_join: boolean };
+        Returns: boolean;
+      };
       set_user_role: {
         Args: {
           new_role: Database['public']['Enums']['user_role'];
