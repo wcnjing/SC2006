@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { can as canDo, type Permission } from '@communitylink/shared';
 import { AppState } from 'react-native';
 
 import { readJSON, writeJSON } from '@/lib/storage';
@@ -51,6 +52,8 @@ type AuthValue = {
   logout: () => Promise<void>;
   setProfile: (p: UserProfile) => void;
   hasRole: (r: UserRole) => boolean;
+  /** P1's shared permission table (rbac.ts), e.g. can('report:review'). UI only: RLS enforces it. */
+  can: (p: Permission) => boolean;
   /** Call on any user interaction to keep the session alive. */
   touch: () => void;
 };
@@ -154,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout: () => endSession(false),
       setProfile: (profile) => setSession((s) => (s ? { ...s, profile } : s)),
       hasRole: (r) => hasRole(session?.account, r),
+      can: (p) =>
+        !!session && canDo({ role: session.account.roles[0], status: session.account.status }, p),
     };
   }, [loading, session, sessionExpired, singpassPrefill, touch, begin, endSession]);
 

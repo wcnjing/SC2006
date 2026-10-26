@@ -1,3 +1,4 @@
+import { canManageActivity } from '@communitylink/shared';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
@@ -51,13 +52,16 @@ type Busy = 'save' | 'join' | 'leave' | null;
  *  - UC SaveActivity: Save / Unsave
  *  - UC JoinActivity: Join (greyed out when full), Cancel my spot with confirmation
  *  - UC ViewActivity exception: cancelled or deleted → "no longer available" + back
+ * Save / Join / Rate are for residents only (P2); the organiser who owns the
+ * activity gets "Manage activity" instead, and other roles just see the details.
  */
 export default function ActivityDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, language } = useSettings();
-  const { session } = useAuth();
+  const { session, hasRole } = useAuth();
   const hood = findNeighbourhood(session?.profile?.neighbourhoodId);
   const me = session?.account.accountId;
+  const resident = hasRole('resident');
 
   const [busy, setBusy] = useState<Busy>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -67,7 +71,7 @@ export default function ActivityDetailsScreen() {
     const activity = await activityService.getActivity(id);
     if (!activity) return null;
     const [participation, ratings, organiser] = await Promise.all([
-      activityService.getParticipation(id),
+      resident ? activityService.getParticipation(id) : null,
       activityService.listRatings(id),
       activityService.getOrganiserName(activity),
     ]);
@@ -129,8 +133,24 @@ export default function ActivityDetailsScreen() {
     ? ratings.reduce((s, r) => s + r.rating, 0) / ratings.length
     : null;
   const myRating = ratings.find((r) => r.user_id === me);
-  const { saved, joined, joinedCount } = participation;
-  const full = activity.capacity !== null && joinedCount >= activity.capacity;
+  const { saved, joined, joinedCount } = participation ?? {
+    saved: false,
+    joined: false,
+    joinedCount: null,
+  };
+  const full =
+    activity.capacity !== null && joinedCount !== null && joinedCount >= activity.capacity;
+  const owner =
+    !!session &&
+    canManageActivity(
+      {
+        id: session.account.accountId,
+        role: session.account.roles[0],
+        status: session.account.status,
+      },
+      session.account.accountId,
+      activity,
+    );
   const started = hasStarted(activity);
   const canRate = joined && hasEnded(activity) && !myRating;
 
@@ -222,10 +242,22 @@ export default function ActivityDetailsScreen() {
       refreshing={page.refreshing}
       onRefresh={page.refresh}
       footer={
-        <View style={styles.footer}>
-          {saveButton}
-          {primary}
-        </View>
+        owner ? (
+          <Button
+            label={t('detail.manage')}
+            icon="create-outline"
+            onPress={() =>
+              router.push({ pathname: '/organiser/[id]/edit', params: { id: activity.id } })
+            }
+          />
+        ) : (
+          resident && (
+            <View style={styles.footer}>
+              {saveButton}
+              {primary}
+            </View>
+          )
+        )
       }
     >
       <ActivityImage category={activity.category} height={220} />
@@ -307,9 +339,13 @@ export default function ActivityDetailsScreen() {
           <InfoItem
             label={t('detail.capacity')}
             value={
-              activity.capacity === null
-                ? t('detail.capacityOpen', { joined: joinedCount })
-                : t('detail.capacityValue', { joined: joinedCount, capacity: activity.capacity })
+              joinedCount === null
+                ? activity.capacity === null
+                  ? t('detail.capacityNoLimit')
+                  : t('detail.capacityOnly', { capacity: activity.capacity })
+                : activity.capacity === null
+                  ? t('detail.capacityOpen', { joined: joinedCount })
+                  : t('detail.capacityValue', { joined: joinedCount, capacity: activity.capacity })
             }
           />
           <InfoItem label={t('detail.price')} value={formatPrice(t, activity.cost_cents)} />

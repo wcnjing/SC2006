@@ -7,6 +7,7 @@ import {
   AppText,
   Banner,
   Button,
+  Card,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -48,17 +49,22 @@ const sgDate = (ms: number) => new Date(ms + 8 * 3600_000).toISOString().slice(0
  *  - UC ViewRecommendations exception: no interests → ranked by distance and
  *    popularity, with a prompt to add interests
  *  - "Happening nearby": what's on near the user's neighbourhood this week
+ * Recommendations are resident-only (P2), so organisers and admins get a
+ * shortcut to their dashboard in that slot instead.
  */
 export default function HomeScreen() {
   const { t } = useSettings();
-  const { session } = useAuth();
+  const { session, hasRole } = useAuth();
   const profile = session?.profile;
   const hood = findNeighbourhood(profile?.neighbourhoodId);
+  const resident = hasRole('resident');
 
   const feed = useAsync(async () => {
     const now = Date.now();
     const [recs, upcoming] = await Promise.all([
-      activityService.getRecommendations(),
+      resident
+        ? activityService.getRecommendations()
+        : { recommendations: [], personalised: true, origin: null },
       hood
         ? activityService.listActivities({
             distance: { origin: hood, maxKm: NEARBY_KM },
@@ -130,40 +136,66 @@ export default function HomeScreen() {
       ) : (
         feed.data && (
           <>
-            <Section title={t('home.recommended')}>
-              {!feed.data.personalised && (
+            {!resident && (
+              <Card variant="muted">
                 <View style={styles.notice}>
-                  <Banner tone="info">{t('home.notPersonalised')}</Banner>
+                  <AppText variant="h3" heading>
+                    {t(hasRole('organiser') ? 'home.organiserTitle' : 'home.adminTitle')}
+                  </AppText>
+                  <AppText color={colors.textMuted}>
+                    {t(hasRole('organiser') ? 'home.organiserBody' : 'home.adminBody')}
+                  </AppText>
                   <Button
-                    label={t('home.addInterests')}
-                    icon="add"
-                    variant="outline"
+                    label={t(
+                      hasRole('organiser')
+                        ? 'profile.organiserDashboard'
+                        : 'profile.adminDashboard',
+                    )}
+                    icon={hasRole('organiser') ? 'clipboard-outline' : 'shield-checkmark-outline'}
                     size="sm"
                     fullWidth={false}
                     style={styles.start}
-                    onPress={() => router.push('/edit-profile')}
+                    onPress={() => router.push(hasRole('organiser') ? '/organiser' : '/admin')}
                   />
                 </View>
-              )}
-              {feed.data.top.length === 0 ? (
-                <EmptyState
-                  icon="sparkles-outline"
-                  title={t('home.recommendedEmpty')}
-                  body={t('home.recommendedEmptyBody')}
-                  actionLabel={t('home.browseAll')}
-                  onAction={() => router.navigate('/discover')}
-                />
-              ) : (
-                feed.data.top.map((rec) => (
-                  <ActivityCard
-                    key={rec.activity.id}
-                    activity={rec.activity}
-                    distanceKm={rec.distanceKm}
-                    reason={recommendationReason(t, rec, profile)}
+              </Card>
+            )}
+            {resident && (
+              <Section title={t('home.recommended')}>
+                {!feed.data.personalised && (
+                  <View style={styles.notice}>
+                    <Banner tone="info">{t('home.notPersonalised')}</Banner>
+                    <Button
+                      label={t('home.addInterests')}
+                      icon="add"
+                      variant="outline"
+                      size="sm"
+                      fullWidth={false}
+                      style={styles.start}
+                      onPress={() => router.push('/edit-profile')}
+                    />
+                  </View>
+                )}
+                {feed.data.top.length === 0 ? (
+                  <EmptyState
+                    icon="sparkles-outline"
+                    title={t('home.recommendedEmpty')}
+                    body={t('home.recommendedEmptyBody')}
+                    actionLabel={t('home.browseAll')}
+                    onAction={() => router.navigate('/discover')}
                   />
-                ))
-              )}
-            </Section>
+                ) : (
+                  feed.data.top.map((rec) => (
+                    <ActivityCard
+                      key={rec.activity.id}
+                      activity={rec.activity}
+                      distanceKm={rec.distanceKm}
+                      reason={recommendationReason(t, rec, profile)}
+                    />
+                  ))
+                )}
+              </Section>
+            )}
 
             <Section
               title={t('home.nearby')}

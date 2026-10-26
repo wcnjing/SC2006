@@ -27,14 +27,19 @@ type Row = {
 };
 type DB = { rows: Row[] };
 
-// v3: email login (P1's auth) and P1 roles, so v2 phone-number data is reseeded.
-const DB_KEY = 'mock-db-v3';
-const SESSION_KEY = 'mock-session-v3';
+// v4: fixed seed account ids, so the community and organiser mocks can refer to them.
+const DB_KEY = 'mock-db-v4';
+const SESSION_KEY = 'mock-session-v4';
 const LATENCY_MS = 400;
 
 const now = () => new Date().toISOString();
 const id = (p: string) => `${p}_${Math.random().toString(36).slice(2, 10)}`;
 const delay = () => new Promise((r) => setTimeout(r, LATENCY_MS));
+/** Random v4-shaped UUID for mock rows (P3's API validates ids as UUIDs). */
+export const mockUuid = () =>
+  'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () =>
+    Math.floor(Math.random() * 16).toString(16),
+  );
 
 function seedProfile(
   displayName: string,
@@ -54,9 +59,13 @@ function seedProfile(
   };
 }
 
-function seedAccount(email: string, role: UserAccount['roles'][number]): UserAccount {
+function seedAccount(
+  email: string,
+  role: UserAccount['roles'][number],
+  accountId = id('acct'),
+): UserAccount {
   return {
-    accountId: id('acct'),
+    accountId,
     email,
     roles: [role],
     status: 'active',
@@ -64,6 +73,18 @@ function seedAccount(email: string, role: UserAccount['roles'][number]): UserAcc
     linkedSingpass: false,
   };
 }
+
+/**
+ * Seed account ids. Omar's id is the organiser id the mock activities already
+ * use for Tampines Community Club, so he can manage those activities.
+ */
+export const MOCK_IDS = {
+  mrsTan: 'acct-mrstan',
+  rachel: 'acct-rachel',
+  omar: 'org-tampines-cc',
+  aisha: 'acct-aisha',
+  sam: 'acct-sam',
+} as const;
 
 /**
  * Demo accounts, documented in README.md. Password for all: Password1.
@@ -80,7 +101,7 @@ function seed(): DB {
   return {
     rows: [
       row(
-        { ...seedAccount('mrstan@test.com', 'resident'), linkedSingpass: true },
+        { ...seedAccount('mrstan@test.com', 'resident', MOCK_IDS.mrsTan), linkedSingpass: true },
         seedProfile(
           'Mrs Tan',
           'tampines',
@@ -90,19 +111,19 @@ function seed(): DB {
         'S1234567A',
       ),
       row(
-        seedAccount('resident@test.com', 'resident'),
+        seedAccount('resident@test.com', 'resident', MOCK_IDS.rachel),
         seedProfile('Resident Rachel', 'toa-payoh', ['fitness', 'gardening', 'social']),
       ),
       row(
-        seedAccount('organiser@test.com', 'organiser'),
+        seedAccount('organiser@test.com', 'organiser', MOCK_IDS.omar),
         seedProfile('Organiser Omar', 'toa-payoh', ['fitness', 'outdoors']),
       ),
       row(
-        seedAccount('admin@test.com', 'admin'),
+        seedAccount('admin@test.com', 'admin', MOCK_IDS.aisha),
         seedProfile('Admin Aisha', 'bishan', ['volunteering']),
       ),
       row(
-        { ...seedAccount('suspended@test.com', 'resident'), status: 'suspended' },
+        { ...seedAccount('suspended@test.com', 'resident', MOCK_IDS.sam), status: 'suspended' },
         seedProfile('Suspended Sam', 'bedok', []),
       ),
     ],
@@ -141,6 +162,18 @@ export async function currentMockUser(): Promise<{
   const row = stored && (await load()).rows.find((r) => r.account.accountId === stored.accountId);
   if (!row || row.account.status === 'suspended') throw new ServiceError('NOT_AUTHENTICATED');
   return { account: row.account, profile: row.profile };
+}
+
+/** Public profile fields of every mock account (what P3's APIs expose about other users). */
+export async function mockPeople() {
+  return (await load()).rows.map(({ account, profile }) => ({
+    id: account.accountId,
+    display_name: profile?.displayName ?? account.email ?? '',
+    avatar_url: profile?.pictureUrl ?? null,
+    neighbourhoodSlug: profile?.neighbourhoodId ?? null,
+    role: account.roles[0],
+    status: account.status,
+  }));
 }
 
 export const mockAuth: AuthService = {

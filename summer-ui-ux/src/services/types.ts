@@ -1,3 +1,5 @@
+import { ApiError, type ActivityInput, type CommunityLinkClient } from '@communitylink/shared';
+
 import type { TranslationKey } from '@/i18n/en';
 import type {
   Activity,
@@ -16,9 +18,9 @@ import type {
 /**
  * API contract the frontend shell depends on.
  *
- * The mock implementation in ./mock is used until P1's Supabase auth and
- * profile API land. To switch, write a `supabase` implementation of these
- * interfaces and export it from ./index.ts. No screen code needs to change.
+ * ./supabase implements it on the teammates' @communitylink/shared functions;
+ * ./mock is the in-device stand-in used when Supabase isn't configured
+ * (src/lib/supabase.ts). ./index.ts picks one; no screen code changes.
  */
 
 export type ServiceErrorCode =
@@ -81,6 +83,16 @@ export const errorMessageKey = (e: unknown): TranslationKey => {
   }
 };
 
+/**
+ * Message for a failed call. P2/P3 validation and conflict errors already carry
+ * a user-facing sentence (e.g. "Start date/time must be in the future."), so
+ * show it as is; everything else goes through errorMessageKey.
+ */
+export const errorText = (t: (key: TranslationKey) => string, e: unknown): string =>
+  e instanceof ApiError && (e.code === 'validation' || e.code === 'conflict')
+    ? e.message
+    : t(errorMessageKey(e));
+
 export interface AuthService {
   /** FR 1.1: create a resident account. Throws EMAIL_TAKEN. Returns a session with profile = null. */
   register(email: string, password: string): Promise<Session>;
@@ -127,10 +139,11 @@ export interface ActivityDiscoverySession {
 }
 
 /**
- * Activity discovery API (P2, Shyanne). Each method maps 1:1 onto a function
- * in @communitylink/shared (`shyanne` branch); the name is given on each
- * line. A Supabase implementation is a thin wrapper that passes the client:
- *   getRecommendations: (o) => getActivityRecommendations(supabase, o)
+ * Activity API (P2, Shyanne). Each method maps 1:1 onto a function in
+ * @communitylink/shared; the name is given on each line (./supabase/activities.ts).
+ * Everything except listActivities / getActivity / getOrganiserName / listRatings
+ * is role-gated by P2: participation, discovery and rating are resident-only,
+ * the organiser methods are organiser-only (FORBIDDEN otherwise).
  */
 export interface ActivityService {
   /** FR 5.1 → getActivityRecommendations. Must resolve within 3 s (UC #5-03). */
@@ -157,4 +170,61 @@ export interface ActivityService {
   listMine(): Promise<MyActivityCollections>;
   /** FR 3.2 → createActivityDiscoverySession. Create once per browsing session. */
   createDiscoverySession(restoredIds?: readonly string[]): Promise<ActivityDiscoverySession>;
+  /** UC RateActivity → submitActivityRating. Joined residents, once, after the end time. */
+  rate(activityId: string, input: { rating: number; comment?: string | null }): Promise<void>;
+
+  // Organiser (FR 11, P2 activityManagement). Organiser role only; own `source = organiser` rows.
+  /** Organiser dashboard → listMyActivities. */
+  listOrganised(): Promise<Activity[]>;
+  /** UC CreateActivity → createActivity. */
+  create(input: ActivityInput): Promise<Activity>;
+  /** UC UpdateActivity → updateActivity. Pass the loaded `updated_at` so a stale edit is rejected. */
+  update(id: string, input: ActivityInput, expectedUpdatedAt?: string): Promise<Activity>;
+  /** UC CancelActivity → cancelActivity. A reason is required. */
+  cancel(id: string, reason: string, expectedUpdatedAt?: string): Promise<Activity>;
 }
+
+/**
+ * Community API (P3, Yining): posts, comments and likes, reports, moderation,
+ * connections, direct messages and blocking. Each method is the
+ * @communitylink/shared function of the same name, minus the client argument,
+ * so the Supabase implementation is generated from this list.
+ */
+export const COMMUNITY_API = [
+  'listPosts',
+  'getPost',
+  'createPost',
+  'updatePost',
+  'deletePost',
+  'listComments',
+  'createComment',
+  'deleteComment',
+  'getPostLikeState',
+  'setPostLiked',
+  'submitReport',
+  'listMyReports',
+  'listModerationReports',
+  'getModerationReport',
+  'reviewContentReport',
+  'listModerationAudit',
+  'sendConnectionRequest',
+  'acceptConnectionRequest',
+  'rejectConnectionRequest',
+  'cancelConnectionRequest',
+  'listConnections',
+  'findConnectionPeople',
+  'getDirectConversation',
+  'sendDirectMessage',
+  'listDirectMessages',
+  'blockUser',
+  'unblockUser',
+  'listBlockedUsers',
+] as const;
+
+type WithoutClient<F> = F extends (client: CommunityLinkClient, ...args: infer A) => infer R
+  ? (...args: A) => R
+  : never;
+
+export type CommunityService = {
+  [K in (typeof COMMUNITY_API)[number]]: WithoutClient<(typeof import('@communitylink/shared'))[K]>;
+};

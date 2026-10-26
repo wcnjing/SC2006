@@ -128,3 +128,6 @@ export const findLabelKey = (items: CatalogItem[], id: string | null | undefined
 
 export const findNeighbourhood = (id: string | null | undefined) =>
   NEIGHBOURHOODS.find((n) => n.id === id);
+/** By Supabase neighbourhoods.id (Profile / Post / Activity.neighbourhood_id). */
+export const findNeighbourhoodByDbId = (dbId: number | null | undefined) =>
+  NEIGHBOURHOODS.find((n) => n.dbId === dbId);

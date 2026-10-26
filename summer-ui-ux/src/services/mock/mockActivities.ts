@@ -1,3 +1,5 @@
+import { ApiError, validateActivityInput, validateActivityRating } from '@communitylink/shared';
+
 import { findNeighbourhood } from '@/config/catalog';
 import { distanceKm, hasCoordinates } from '@/lib/geo';
 import { readJSON, writeJSON } from '@/lib/storage';
@@ -8,41 +10,40 @@ import type {
   ActivityRecommendation,
   MyActivityCard,
   RecommendationOrigin,
-  UserAccount,
   UserProfile,
 } from '@/types/models';
 
 import { ServiceError, type ActivityDiscoverySession, type ActivityService } from '../types';
-import { currentMockUser } from './mockBackend';
-
-type CurrentUser = () => Promise<{ account: UserAccount; profile: UserProfile | null }>;
+import { currentMockUser as currentUser, mockUuid } from './mockBackend';
 
 /**
- * Who is logged in. The mock auth backend by default; with Supabase login
- * (before P2's API is wired in) it is the real Supabase user, so activity
- * data is mocked but saves and joins belong to the real account.
- */
-let currentUser: CurrentUser = currentMockUser;
-export const setMockActivityUser = (fn: CurrentUser) => {
-  currentUser = fn;
-};
-
-/**
- * In-device stand-in for P2's activity API (@communitylink/shared, `shyanne`
- * branch). Behaviour follows P2's code and docs/p2-*.md:
+ * In-device stand-in for P2's activity API (@communitylink/shared). Behaviour
+ * follows P2's code and docs/p2-*.md:
+ *  - participation, discovery, My activities and rating are resident-only
+ *  - organisers create / edit / cancel only their own scheduled, not-yet-started activities
  *  - only upcoming `scheduled` activities are listed / swiped / recommended
  *  - Like/Save = bookmark (never a registration); Skip = own `skipped` row
  *  - Join checks status, start time and capacity; Leave frees the seat
  *  - recommendations use P2's ranking (accessibility needs are hard filters)
  *
  * Activities are rebuilt on every launch relative to today, so "upcoming"
- * and "past" stay correct whenever the demo runs. Only each user's own
- * decisions (bookmarks, joins, skips, ratings) are persisted.
+ * and "past" stay correct whenever the demo runs. Persisted: each user's own
+ * decisions (bookmarks, joins, skips, ratings), and organisers' new and edited
+ * activities (shared by every account, like the real table).
  */
 
 const STATE_KEY = 'mock-activity-state-v1';
+const ORGANISED_KEY = 'mock-organised-activities-v1';
 const LATENCY_MS = 350;
-const delay = (ms = LATENCY_MS) => new Promise((r) => setTimeout(r, ms));
+
+/** Organiser-created activities and edited seed ones, by id. Loaded once at startup. */
+let organised: Record<string, Activity> = {};
+const organisedLoaded = readJSON<Record<string, Activity>>(ORGANISED_KEY).then((rows) => {
+  organised = rows ?? {};
+});
+// Every service call starts with delay(), so this is also where it waits for the stored activities.
+const delay = (ms = LATENCY_MS) =>
+  Promise.all([organisedLoaded, new Promise((r) => setTimeout(r, ms))]);
 
 /* ----------------------------- seed activities ---------------------------- */
 
@@ -408,10 +409,13 @@ function buildActivity(s: Seed): Activity {
   };
 }
 
-let cachedActivities: Activity[] | null = null;
+let seedActivities: Activity[] | null = null;
 function allActivities(): Activity[] {
-  cachedActivities ??= SEEDS.map(buildActivity);
-  return cachedActivities;
+  seedActivities ??= SEEDS.map(buildActivity);
+  return Object.values({
+    ...Object.fromEntries(seedActivities.map((a) => [a.id, a])),
+    ...organised,
+  });
 }
 const othersJoined = (id: string) => SEEDS.find((s) => uuid(s.n) === id)?.othersJoined ?? 0;
 
@@ -481,8 +485,13 @@ function initialState(email: string | null, accountId: string, name: string): Us
   };
 }
 
-async function withUser<T>(fn: (state: UserState, accountId: string) => T | Promise<T>) {
+async function withUser<T>(
+  fn: (state: UserState, accountId: string) => T | Promise<T>,
+  residentOnly = true,
+) {
   const { account, profile } = await currentUser();
+  // P2's requireActivityResident: organisers and admins can't save, join, swipe or rate.
+  if (residentOnly && !account.roles.includes('resident')) throw new ServiceError('FORBIDDEN');
   const db = (await readJSON<StateDB>(STATE_KEY)) ?? {};
   const state = (db[account.accountId] ??= initialState(
     account.email,
@@ -499,6 +508,13 @@ const isUpcoming = (a: Activity, now = Date.now()) =>
   a.status === 'scheduled' && Date.parse(a.starts_at) > now;
 const joinedCount = (id: string, state: UserState) =>
   othersJoined(id) + (state.participation[id] === 'joined' ? 1 : 0);
+/** Joined count across every mock account (what the organiser's capacity check sees). */
+async function joinedByAnyone(id: string) {
+  const db = (await readJSON<StateDB>(STATE_KEY)) ?? {};
+  return (
+    othersJoined(id) + Object.values(db).filter((s) => s.participation[id] === 'joined').length
+  );
+}
 
 /* --------------------------- filters & ranking ---------------------------- */
 
@@ -591,6 +607,36 @@ const requireActivity = (id: string) => {
   return a;
 };
 
+async function requireOrganiser() {
+  const { account } = await currentUser();
+  if (!account.roles.includes('organiser') || account.status !== 'active')
+    throw new ServiceError('FORBIDDEN');
+  return account.accountId;
+}
+
+/** P2's ownActivity + start-time checks for update / cancel. */
+function managed(id: string, organiserId: string, expectedUpdatedAt?: string) {
+  const a = find(id);
+  if (!a || a.organiser_id !== organiserId || a.source !== 'organiser')
+    throw new ServiceError('FORBIDDEN');
+  if (a.status !== 'scheduled')
+    throw new ApiError('Only scheduled activities can be managed.', 'validation');
+  if (expectedUpdatedAt && a.updated_at !== expectedUpdatedAt)
+    throw new ApiError('Activity changed. Reopen it and try again.', 'conflict');
+  if (Date.parse(a.starts_at) <= Date.now())
+    throw new ApiError(
+      'This activity has already started and can no longer be changed.',
+      'validation',
+    );
+  return a;
+}
+
+async function storeOrganised(a: Activity) {
+  organised[a.id] = a;
+  await writeJSON(ORGANISED_KEY, organised);
+  return a;
+}
+
 const card = (activity: Activity, state: UserState): MyActivityCard => ({
   activity,
   saved: state.bookmarks.includes(activity.id),
@@ -682,11 +728,85 @@ export const mockActivities: ActivityService = {
 
   async listRatings(activityId) {
     await delay(200);
-    return withUser((state) =>
-      [...state.ratings, ...SEED_RATINGS]
-        .filter((r) => r.activity_id === activityId)
-        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)),
-    );
+    const db = (await readJSON<StateDB>(STATE_KEY)) ?? {};
+    return [...Object.values(db).flatMap((s) => s.ratings), ...SEED_RATINGS]
+      .filter((r) => r.activity_id === activityId)
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  },
+
+  async rate(activityId, input) {
+    await delay();
+    const clean = validateActivityRating(input);
+    const activity = requireActivity(activityId);
+    const { profile } = await currentUser();
+    await withUser((state, accountId) => {
+      if (state.ratings.some((r) => r.activity_id === activityId))
+        throw new ApiError('You have already rated this activity.', 'validation');
+      if (state.participation[activityId] !== 'joined')
+        throw new ApiError('Only residents who joined can rate this activity.', 'validation');
+      if (activity.status === 'cancelled' || Date.parse(activity.ends_at) >= Date.now())
+        throw new ApiError('You can rate this activity after it has concluded.', 'validation');
+      state.ratings.push({
+        activity_id: activityId,
+        user_id: accountId,
+        ...clean,
+        created_at: new Date().toISOString(),
+        reviewer_name: profile?.displayName ?? null,
+      });
+    });
+  },
+
+  async listOrganised() {
+    await delay();
+    const me = await requireOrganiser();
+    return allActivities()
+      .filter((a) => a.organiser_id === me && a.source === 'organiser')
+      .sort(byStart);
+  },
+
+  async create(input) {
+    await delay();
+    const clean = validateActivityInput(input);
+    const organiserId = await requireOrganiser();
+    const now = new Date().toISOString();
+    return storeOrganised({
+      ...clean,
+      id: mockUuid(),
+      neighbourhood_id: null,
+      organiser_id: organiserId,
+      source: 'organiser',
+      status: 'scheduled',
+      cancelled_reason: null,
+      external_id: null,
+      created_at: now,
+      updated_at: now,
+    });
+  },
+
+  async update(id, input, expectedUpdatedAt) {
+    await delay();
+    const clean = validateActivityInput(input);
+    const current = managed(id, await requireOrganiser(), expectedUpdatedAt);
+    const joined = await joinedByAnyone(id);
+    if (clean.capacity !== null && clean.capacity < joined)
+      throw new ApiError(
+        `Capacity cannot be below the ${joined} joined participants.`,
+        'validation',
+      );
+    return storeOrganised({ ...current, ...clean, updated_at: new Date().toISOString() });
+  },
+
+  async cancel(id, reason, expectedUpdatedAt) {
+    await delay();
+    const cancelled_reason = reason.trim();
+    if (!cancelled_reason) throw new ApiError('A cancellation reason is required.', 'validation');
+    const current = managed(id, await requireOrganiser(), expectedUpdatedAt);
+    return storeOrganised({
+      ...current,
+      status: 'cancelled',
+      cancelled_reason,
+      updated_at: new Date().toISOString(),
+    });
   },
 
   async listMine() {
@@ -711,6 +831,7 @@ export const mockActivities: ActivityService = {
 
   async createDiscoverySession(restoredIds = []) {
     const { account } = await currentUser();
+    if (!account.roles.includes('resident')) throw new ServiceError('FORBIDDEN');
     const excluded = new Set(restoredIds);
     const pending = new Set<string>();
     const session: ActivityDiscoverySession = {

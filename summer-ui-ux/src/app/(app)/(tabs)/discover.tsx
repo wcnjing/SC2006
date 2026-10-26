@@ -41,6 +41,24 @@ const REFILL_AT = 3;
  */
 export default function DiscoverScreen() {
   const { t } = useSettings();
+  const { hasRole } = useAuth();
+  if (hasRole('resident')) return <ResidentDiscover />;
+  // P2's discovery session is resident-only.
+  return (
+    <Screen inTabs header={<AppHeader />}>
+      <EmptyState
+        icon="albums-outline"
+        title={t('discover.residentsOnly')}
+        body={t('discover.residentsOnlyBody')}
+        actionLabel={hasRole('organiser') ? t('profile.organiserDashboard') : undefined}
+        onAction={() => router.push('/organiser')}
+      />
+    </Screen>
+  );
+}
+
+function ResidentDiscover() {
+  const { t } = useSettings();
   const { session } = useAuth();
   const hood = findNeighbourhood(session?.profile?.neighbourhoodId);
 

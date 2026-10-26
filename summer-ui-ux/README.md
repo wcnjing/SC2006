@@ -33,8 +33,8 @@ Password for every mock account: `Password1`. On Supabase, use P1's seeded accou
 | ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | mrstan@test.com    | resident  | the mockup persona ("Mrs Tan"), Singpass-linked. Has joined, saved, past and rated activities, so every Week 9 screen has data |
 | resident@test.com  | resident  | P1's "Resident Rachel" (Toa Payoh)                                                                                             |
-| organiser@test.com | organiser | Organiser dashboard entry in Profile (P1's "Organiser Omar")                                                                   |
-| admin@test.com     | admin     | Admin dashboard entry in Profile (P1's "Admin Aisha")                                                                          |
+| organiser@test.com | organiser | Organiser dashboard: owns the Tampines Community Club activities, can create / edit / cancel them (P1's "Organiser Omar")      |
+| admin@test.com     | admin     | Admin dashboard: two open reports (a scam post and a spam comment) to remove or dismiss (P1's "Admin Aisha")                   |
 | suspended@test.com | resident  | the "account suspended" error                                                                                                  |
 
 Mock Singpass: on Login, tap **Log in with singpass**. "Tan Mei Ling" logs in as Mrs Tan. "Lim Wei Jie" is a new user, who goes to Complete Your Profile with the name prefilled.
@@ -49,12 +49,34 @@ Mock activities are generated around Tampines relative to **today**, so "upcomin
 | `/activity/a0000000-0000-4000-8000-000000000013` | Tai Chi: **cancelled** → "no longer available" (UC ViewActivity exception) |
 | `/my-activities?tab=past`                        | Past tab: one unrated (Rate button), one already rated (stars)             |
 
+## What's built (Week 10: teammates' features in the shell)
+
+| Feature                                      | Where                                                                     | Backed by                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Organiser dashboard / create / edit / cancel | `src/app/(app)/organiser/*`, `src/features/activities/ActivityForm.tsx`   | P2 `listMyActivities`, `createActivity`, `updateActivity`, `cancelActivity`, `canManageActivity` |
+| Rate activity                                | `src/app/(app)/activity/[id]/rate.tsx`                                    | P2 `submitActivityRating`                                                                        |
+| Community feed, posts, comments, likes       | `(tabs)/community.tsx`, `post/*`, `src/features/community/*`              | P3 posts + postInteractions                                                                      |
+| Report post / comment, My reports            | `post/[id]/report.tsx` (`?comment=<id>`), `my-reports.tsx`                | P3 reports                                                                                       |
+| Friends, user profile, block                 | `friend-requests.tsx` (`?tab=find`), `user/[id].tsx`, `blocked-users.tsx` | P3 connections + messaging                                                                       |
+| Messages                                     | `messages/index.tsx` (your friends), `messages/[id].tsx`                  | P3 messaging (DMs only between connected users)                                                  |
+| Admin moderation                             | `admin/index.tsx`, `admin/queue/[type].tsx`, `admin/content/[id].tsx`     | P3 moderation (remove / dismiss with a reason, audit log)                                        |
+
+**What each role can do** (the UI follows the shared APIs; RLS is the real check):
+
+| Role      | Can                                                                                                                     | Can't (hidden in the UI)                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| resident  | recommendations, Discover, save / join, My activities, rate; community                                                  | organiser and admin screens                                                |
+| organiser | create, edit and cancel **own** scheduled, not-yet-started activities ("Manage activity" on its detail page); community | save / join / Discover / rate / My activities (P2 is resident-only); admin |
+| admin     | review reports, remove content, audit log (`can('report:review')`); community                                           | save / join / Discover / rate; managing activities                         |
+
+Notes for the team: P1's `rbac.ts` gives `activity:create` to admins too, but P2's `canManageActivity` accepts organisers only, so the shell follows P2. Not built yet: Admin users / verify (no "list users" API), activity reports (P3 reports only cover posts and comments), sharing a post, paging past 50 items (`shortcut:` comment in `mockCommunity.ts`).
+
 ## What's built (P5, Week 9)
 
 | Deliverable (Plan.pdf)             | Where                                                                               | Covers                                                                                                                                                                                                            |
 | ---------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Home                               | `src/app/(app)/(tabs)/index.tsx`                                                    | FR 5.1.5 recommendations, FR 5.1.6 reason on every card, UC ViewRecommendations exception (no interests → distance + popularity, "Add interests" prompt), "Happening nearby" (3 km, next 7 days), pull to refresh |
-| Discover (swipe + button fallback) | `src/app/(app)/(tabs)/discover.tsx`, `src/features/activities/SwipeDeck.tsx`        | FR 3.2.1–3.2.6, UC BrowseActivity: one card at a time, swipe right = save, left = skip, ✕ / ♥ buttons always on screen, ← / → keys on web, screen-reader actions, end-of-queue message, Reduce motion            |
+| Discover (swipe + button fallback) | `src/app/(app)/(tabs)/discover.tsx`, `src/features/activities/SwipeDeck.tsx`        | FR 3.2.1–3.2.6, UC BrowseActivity: one card at a time, swipe right = save, left = skip, ✕ / ♥ buttons always on screen, ← / → keys on web, screen-reader actions, end-of-queue message, Reduce motion             |
 | Activity detail                    | `src/app/(app)/activity/[id]/index.tsx`                                             | FR 3.1.2–3.1.7, FR 9.1.5 average + reviews, UC SaveActivity, UC JoinActivity (capacity, confirm before cancelling), UC ViewActivity exception, Report flag → P3's route                                           |
 | My Activities                      | `src/app/(app)/my-activities.tsx`                                                   | Upcoming / Saved / Past (Dialog Map), Unsave, Rate → P2's rate screen when concluded and not yet rated (FR 9.1.3)                                                                                                 |
 | Activity UI pieces                 | `src/features/activities/*`                                                         | `ActivityCard` (large/compact), `ActivityRow`, `ActivityTags`, `ActivityImage`, `Stars`, translated reason builder, SGT date formatting, metric distance                                                          |
@@ -120,7 +142,7 @@ It imports P1's shared package directly from `../packages/shared/src` (path alia
 
 ## For P2 (Shyanne): plugging in the real activity API
 
-**Status:** P2's functions are on the `shyanne` branch (PR #1), not on `main`, so the activity screens still use the mock data, even when logged in to Supabase (saves and joins are kept per real account). Once PR #1 is merged and this branch is updated, add `src/services/supabase/activities.ts` using the table below and switch `activityService` in `src/services/index.ts`.
+**Status (Week 10):** `shyanne` and `yining` are merged into `summer/week10-integration`. With `.env` keys set, `activityService` is `src/services/supabase/activities.ts` (the table below) and `communityService` is `src/services/supabase/community.ts`. Without keys (or `EXPO_PUBLIC_BACKEND=mock`) both run on the in-device mocks.
 
 `ActivityService` in `src/services/types.ts` is a 1:1 wrapper over the functions on the `shyanne` branch, and the types in `src/types/models.ts` (`Activity`, `ActivityRecommendation`, `MyActivityCollections`, …) are copies of the shared ones, snake_case included. A Supabase implementation is mostly one-liners:
 

@@ -2,7 +2,7 @@ import { ApiError } from '@communitylink/shared';
 
 import { ServiceError, type ServiceErrorCode } from '../types';
 
-/** ApiError.code (P1/P2 shared API, Supabase Auth, Postgres) → the shell's ServiceError codes. */
+/** ApiError.code (P1/P2/P3 shared API, Supabase Auth, Postgres) → the shell's ServiceError codes. */
 const CODES: Record<string, ServiceErrorCode> = {
   invalid_credentials: 'INVALID_CREDENTIALS',
   user_already_exists: 'EMAIL_TAKEN',
@@ -12,6 +12,7 @@ const CODES: Record<string, ServiceErrorCode> = {
   '42501': 'FORBIDDEN',
   not_found: 'NOT_FOUND',
   PGRST116: 'NOT_FOUND',
+  P0002: 'NOT_FOUND',
   skip_unavailable: 'SKIP_UNAVAILABLE',
   busy: 'BUSY',
   timeout: 'TIMEOUT',
@@ -22,6 +23,8 @@ export function toServiceError(e: unknown): unknown {
   if (e instanceof ApiError) {
     const code = e.code && CODES[e.code];
     if (code) return new ServiceError(code);
+    // Already a user-facing sentence (shown by errorText), e.g. "…has already started and cannot be cancelled."
+    if (e.code === 'validation' || e.code === 'conflict') return e;
     if (/full/i.test(e.message)) return new ServiceError('ACTIVITY_FULL');
     if (/cancelled|completed|already started/i.test(e.message))
       return new ServiceError('ACTIVITY_UNAVAILABLE');

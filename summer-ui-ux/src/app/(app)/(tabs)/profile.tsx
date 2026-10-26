@@ -35,19 +35,21 @@ export default function ProfileTab() {
   if (!profile) return null;
 
   const hoodKey = findLabelKey(NEIGHBOURHOODS, profile.neighbourhoodId) as
-    | TranslationKey
-    | undefined;
+    TranslationKey | undefined;
   const label = (items: typeof CATEGORIES, id: string) => {
     const k = findLabelKey(items, id);
     return k ? t(k as TranslationKey) : id;
   };
 
-  const activity: MenuItem[] = [
-    { key: 'profile.myActivities', icon: 'calendar-outline', href: '/my-activities' },
-  ];
+  // My activities (saved / joined / past) is resident-only in P2.
+  const activity: MenuItem[] = hasRole('resident')
+    ? [{ key: 'profile.myActivities', icon: 'calendar-outline', href: '/my-activities' }]
+    : [];
   const connect: MenuItem[] = [
     { key: 'profile.friendRequests', icon: 'person-add-outline', href: '/friend-requests' },
     { key: 'profile.messages', icon: 'chatbubble-ellipses-outline', href: '/messages' },
+    { key: 'profile.myReports', icon: 'flag-outline', href: '/my-reports' },
+    { key: 'profile.blockedUsers', icon: 'ban-outline', href: '/blocked-users' },
   ];
   const manage: MenuItem[] = [
     ...(hasRole('organiser')
