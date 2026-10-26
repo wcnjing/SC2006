@@ -90,9 +90,75 @@ Clients can only `UPDATE` the columns granted in `*_rls_policies.sql`. To change
 ## Open items for each owner
 
 - **P2:** enforce `capacity` when joining (trigger or RPC). Add the recommendation query/RPC. Add dataset import with `source = 'dataset'` and `external_id`.
-- **P3:** `admin_remove_content(target_type, target_id, reason)` function, following the pattern above. When blocking, delete any connection between the two users (trigger on `blocks`). Report → admin queue screens.
+- **P3:** social APIs/screens are implemented below; verify migrations and integration with P1.
 - **P4:** `notify(user_id, type, payload)` as a `security definer` function, called from triggers (activity changed/cancelled, connection request, new DM) so clients can't spam notifications.
 - **P1:** real Singpass (Week 10) sets `profiles.singpass_verified`.
+
+## Posts and feed (P3)
+
+Shared post APIs implement the Latest neighbourhood feed, author CRUD, paginated
+comments and like/unlike. Comment APIs are `listComments`, `createComment`,
+`updateComment` and `deleteComment`. `getPostLikeState` returns the count and
+current resident's like state; `setPostLiked` sets an explicit desired state,
+so retrying does not toggle or duplicate a like. Every function takes the typed
+client first.
+
+See [P3 posts and feed](p3-posts-feed.md) for function signatures, routes,
+database protections, verification and integration with the other branches.
+
+## Reports (P3)
+
+`submitReport(client, { targetType, targetId, reason, details?, requestId? })`
+submits a post/comment report using the current reporter's session. Reasons are
+required (maximum 100 characters); optional details allow 1,000. `requestId`
+supports duplicate-safe retries.
+
+`listMyReports(client, { limit?, cursor?, signal? }?)` returns paginated personal
+history, including review status and any resolution note. It explicitly filters
+by the current reporter even for admins. Submissions are immutable to reporters.
+See [P3 reports](p3-reports.md) for routes, migration requirements and verification.
+
+## Admin moderation (P3)
+
+`listModerationReports` lists the admin queue by status; `getModerationReport`
+loads the report and current post/comment, including removed content.
+`reviewContentReport(client, reportId, 'remove' | 'dismiss', reason)` calls
+`review_content_report`, which checks active-admin access and atomically updates
+content/report status and writes an audit entry. Direct report review updates
+are revoked by the moderation migration. `listModerationAudit` exposes paginated
+moderation decisions; P1's `listAuditLog` still exposes the full system log.
+
+See [P3 admin moderation](p3-moderation.md) for routes, migration, retry/conflict
+semantics and verification. Moderation reasons are visible in reporters' histories.
+
+## Connections (P3)
+
+`sendConnectionRequest(client, targetUserId)` sends a friend request.
+`listConnections(client, { view?, limit?, cursor?, signal? }?)` lists incoming,
+outgoing or accepted relationships. `findConnectionPeople` searches public names
+and returns only the caller's relationship with each person.
+
+Use `connectionRequestRef(connection)` with `acceptConnectionRequest`,
+`rejectConnectionRequest` or `cancelConnectionRequest`. Recipient/sender rights,
+active status, blocking and state transitions are enforced by the request RPCs;
+clients cannot write relationship state directly. Accept creates a friendship;
+reject/cancel delete a pending row. See [P3 connections](p3-connections.md) for
+the `/connections` screen, migration and concurrency rules.
+
+## DMs and blocking (P3)
+
+`sendDirectMessage(client, { recipientId, body, requestId? })` sends text between
+active, accepted, unblocked connections. `listDirectMessages` paginates the
+current participant pair; `getDirectConversation` exposes public peer details
+and messaging permission flags. Blocking hides retained message history until
+the users reconnect.
+
+`blockUser` and `unblockUser` change only the caller's block through
+`set_user_block`. Blocking removes the connection in the same transaction;
+unblocking does not restore it. `listBlockedUsers` returns private, paginated
+block history. Direct message inserts and block writes are revoked in the new
+migration. See [P3 DMs and blocking](p3-messaging-blocking.md) for routes,
+permissions, retry semantics and verification.
 
 ## Errors
 

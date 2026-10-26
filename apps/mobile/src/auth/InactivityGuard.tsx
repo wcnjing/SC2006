@@ -9,20 +9,23 @@ const TIMEOUT_MESSAGE = 'You were logged out after 30 minutes of inactivity.';
 // after 30 minutes (SESSION_TIMEOUT_MS) without one, including time spent in the background.
 export function InactivityGuard({ children }: { children: React.ReactNode }) {
   const { session, signOut } = useAuth();
-  const lastActiveAt = useRef(Date.now());
+  const lastActiveAt = useRef(0); // Initialized by markActive() in the effect below.
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const schedule = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    if (!session) return;
-    timer.current = setTimeout(() => {
-      if (isSessionExpired(lastActiveAt.current)) {
-        void signOut(TIMEOUT_MESSAGE);
-      } else {
-        schedule();
-      }
-    }, msUntilExpiry(lastActiveAt.current));
-  }, [session, signOut]);
+  const schedule = useCallback(
+    function scheduleNext() {
+      if (timer.current) clearTimeout(timer.current);
+      if (!session) return;
+      timer.current = setTimeout(() => {
+        if (isSessionExpired(lastActiveAt.current)) {
+          void signOut(TIMEOUT_MESSAGE);
+        } else {
+          scheduleNext();
+        }
+      }, msUntilExpiry(lastActiveAt.current));
+    },
+    [session, signOut],
+  );
 
   const markActive = useCallback(() => {
     lastActiveAt.current = Date.now();

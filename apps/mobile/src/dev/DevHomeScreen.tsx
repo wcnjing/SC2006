@@ -1,5 +1,6 @@
 // Temporary authenticated home until the shared app shell lands.
 // Replace with the real tab navigation once Summer's shell lands.
+import { Link } from 'expo-router';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { RoleGate } from '../auth/RoleGate';
 import { useAuth } from '../auth/AuthProvider';
@@ -22,6 +23,9 @@ export function DevHomeScreen() {
         <Text style={styles.badge}>Admin tools available</Text>
       </RoleGate>
 
+      <Link href="/community" style={styles.heading}>
+        Open community feed
+      </Link>
       <Text style={styles.heading}>Upcoming activities</Text>
       <ActivityList />
       <Button title="Log out" onPress={() => signOut()} />

@@ -710,6 +710,45 @@ export type Database = {
         Args: { user_a: string; user_b: string };
         Returns: boolean;
       };
+      send_direct_message: {
+        Args: { p_recipient: string; p_body: string; p_request_id?: string };
+        Returns: Database['public']['Tables']['messages']['Row'][];
+      };
+      set_user_block: { Args: { p_target_user: string; p_blocked: boolean }; Returns: boolean };
+      get_direct_conversation: {
+        Args: { p_other_user: string };
+        Returns: {
+          id: string;
+          display_name: string;
+          avatar_url: string | null;
+          neighbourhood_id: number | null;
+          connected: boolean;
+          blocked_by_me: boolean;
+          can_send: boolean;
+        }[];
+      };
+      send_connection_request: {
+        Args: { p_target_user: string };
+        Returns: Database['public']['Tables']['connections']['Row'][];
+      };
+      manage_connection_request: {
+        Args: { p_requester: string; p_addressee: string; p_created_at: string; p_action: string };
+        Returns: Database['public']['Tables']['connections']['Row'][];
+      };
+      find_connection_people: {
+        Args: { p_query?: string; p_limit?: number; p_after?: string };
+        Returns: {
+          id: string;
+          display_name: string;
+          avatar_url: string | null;
+          neighbourhood_id: number | null;
+          requester_id: string | null;
+          addressee_id: string | null;
+          connection_status: Database['public']['Enums']['connection_status'] | null;
+          connection_created_at: string | null;
+          responded_at: string | null;
+        }[];
+      };
       current_user_role: {
         Args: never;
         Returns: Database['public']['Enums']['user_role'];
@@ -728,6 +767,10 @@ export type Database = {
       set_activity_registration: {
         Args: { target_activity: string; should_join: boolean };
         Returns: boolean;
+      };
+      review_content_report: {
+        Args: { p_report_id: string; p_action: string; p_reason: string };
+        Returns: Database['public']['Tables']['reports']['Row'][];
       };
       set_user_role: {
         Args: {
