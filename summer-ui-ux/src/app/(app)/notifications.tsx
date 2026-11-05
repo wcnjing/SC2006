@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function NotificationsScreen() {
   return (
     <PlaceholderScreen
-      title="Notifications"
+      titleKey="home.notifications"
       owner="P4: Integrations & Notifications"
       covers={['FR 10 notifications (reminders, changes, friend/DM alerts)']}
       icon="notifications-outline"

@@ -15,12 +15,12 @@ import {
 } from '@/components/ui';
 import { useT } from '@/context/SettingsContext';
 import { formatAgo } from '@/features/community/format';
-import { REPORT_STATUS } from '@/features/community/reportStatus';
+import { REPORT_STATUS, REPORT_TYPES } from '@/features/community/reportStatus';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey } from '@/services';
 import { colors, spacing } from '@/theme/tokens';
 
-/** Reported posts or comments (FR 12.1.1): /admin/queue/post or /admin/queue/comment. */
+/** Reported posts, comments or activities (FR 12.1.1): /admin/queue/post | comment | activity. */
 export default function ReportQueueScreen() {
   const { type } = useLocalSearchParams<{ type: string }>();
   const t = useT();
@@ -30,7 +30,7 @@ export default function ReportQueueScreen() {
     <Screen
       header={
         <ScreenHeader
-          title={t(type === 'comment' ? 'admin.reportedComments' : 'admin.reportedPosts')}
+          title={t((REPORT_TYPES[type as keyof typeof REPORT_TYPES] ?? REPORT_TYPES.post).queue)}
         />
       }
       contentStyle={styles.content}

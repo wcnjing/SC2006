@@ -1,13 +1,11 @@
-import { PlaceholderScreen } from '@/components/PlaceholderScreen';
+import { useLocalSearchParams } from 'expo-router';
 
-/** Placeholder route from the Dialog Map. Owner: P2 (Shyanne): Discovery / P3 (Yining): Social & Admin. Replace this body; keep the file path. */
+import { useT } from '@/context/SettingsContext';
+import { ReportForm } from '@/features/community/ReportForm';
+
+/** Report an activity (FR 8.4.3, UC ReportActivity). Goes to the same admin queue as posts. */
 export default function ReportActivityScreen() {
-  return (
-    <PlaceholderScreen
-      title="Report activity"
-      owner="P2 (Shyanne): Discovery / P3 (Yining): Social & Admin"
-      covers={['FR 8.4.3', 'UC ReportActivity']}
-      icon="flag-outline"
-    />
-  );
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const t = useT();
+  return <ReportForm title={t('detail.report')} targetType="activity" targetId={id} />;
 }

@@ -637,6 +637,17 @@ async function storeOrganised(a: Activity) {
   return a;
 }
 
+/** Activity reports (FR 8.4.3) live in mockCommunity: it reads the activity, and cancels it on admin "remove". */
+export const findMockActivity = find;
+export const mockOrganiserName = (id: string) => ORGANISERS[id] ?? null;
+export const cancelMockActivity = (a: Activity, reason: string) =>
+  storeOrganised({
+    ...a,
+    status: 'cancelled',
+    cancelled_reason: reason,
+    updated_at: new Date().toISOString(),
+  });
+
 const card = (activity: Activity, state: UserState): MyActivityCard => ({
   activity,
   saved: state.bookmarks.includes(activity.id),

@@ -5,7 +5,8 @@ SC2006 group project. A community app for Singapore residents to discover local 
 **Stack:** Expo (React Native) + TypeScript, Supabase (Postgres, Auth, row-level security).
 
 ```
-apps/mobile/         Expo app
+summer-ui-ux/        The CommunityLink app (all screens; see its README to run it)
+apps/mobile/         P1's Expo dev harness
 packages/shared/     Shared TypeScript: DB types, API functions, validation, RBAC
 services/mockpass/   Local Mockpass server
 services/mockpass-auth/ CommunityLink Mockpass authentication bridge
@@ -116,8 +117,8 @@ Optional local sandbox (needs Docker): `supabase start`, then `supabase db reset
 | `npm test`          | Unit tests                                                 |
 | `npm run test:db`   | Auth/RBAC/RLS integration tests (local Supabase only)      |
 | `npm run seed`      | Seed test data into the project in `.env` (safe to re-run) |
-| `npm run mockpass`    | Start the local Mockpass authentication bridge             |
-| `npm run db:types`    | Regenerate `database.types.ts` from the linked project     |
+| `npm run mockpass`  | Start the local Mockpass authentication bridge             |
+| `npm run db:types`  | Regenerate `database.types.ts` from the linked project     |
 | `npm run format`    | Prettier                                                   |
 
 ## Team workflow

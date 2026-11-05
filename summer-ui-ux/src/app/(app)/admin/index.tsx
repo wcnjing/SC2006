@@ -13,12 +13,13 @@ import {
 } from '@/components/ui';
 import { useT } from '@/context/SettingsContext';
 import { formatAgo } from '@/features/community/format';
+import { REPORT_TYPES, reportTypeLabel } from '@/features/community/reportStatus';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey } from '@/services';
 import { colors, spacing } from '@/theme/tokens';
 
 /**
- * Admin dashboard (Dialog Map 5; FR 12.1). Open reports by content type
+ * Admin dashboard (Dialog Map 5; FR 12.1). Open reports by content type (post, comment, activity)
  * (P3 listModerationReports) and the latest moderation decisions from the
  * audit log (P3 listModerationAudit). Route guarded by can('report:review').
  */
@@ -30,8 +31,12 @@ export default function AdminDashboardScreen() {
       communityService.listModerationAudit({ limit: 10 }),
     ]);
     const count = (type: string) => open.reports.filter((r) => r.target_type === type).length;
-    return { posts: count('post'), comments: count('comment'), audit: audit.entries };
+    return {
+      open: { post: count('post'), comment: count('comment'), activity: count('activity') },
+      audit: audit.entries,
+    };
   });
+  const openCounts = page.data?.open;
 
   return (
     <Screen
@@ -49,26 +54,19 @@ export default function AdminDashboardScreen() {
           <>
             <Section title={t('admin.reportsTitle')}>
               <View style={styles.tiles}>
-                <ListRow
-                  tile
-                  icon="document-text-outline"
-                  title={t('admin.reportedPosts')}
-                  subtitle={t('admin.openCount', { count: page.data.posts })}
-                  subtitleTone={page.data.posts ? 'alert' : 'muted'}
-                  onPress={() =>
-                    router.push({ pathname: '/admin/queue/[type]', params: { type: 'post' } })
-                  }
-                />
-                <ListRow
-                  tile
-                  icon="chatbox-ellipses-outline"
-                  title={t('admin.reportedComments')}
-                  subtitle={t('admin.openCount', { count: page.data.comments })}
-                  subtitleTone={page.data.comments ? 'alert' : 'muted'}
-                  onPress={() =>
-                    router.push({ pathname: '/admin/queue/[type]', params: { type: 'comment' } })
-                  }
-                />
+                {(Object.keys(REPORT_TYPES) as (keyof typeof REPORT_TYPES)[]).map((type) => (
+                  <ListRow
+                    key={type}
+                    tile
+                    icon={REPORT_TYPES[type].icon}
+                    title={t(REPORT_TYPES[type].queue)}
+                    subtitle={t('admin.openCount', { count: openCounts?.[type] ?? 0 })}
+                    subtitleTone={openCounts?.[type] ? 'alert' : 'muted'}
+                    onPress={() =>
+                      router.push({ pathname: '/admin/queue/[type]', params: { type } })
+                    }
+                  />
+                ))}
               </View>
             </Section>
 
@@ -85,7 +83,7 @@ export default function AdminDashboardScreen() {
                             ? 'admin.auditRemoved'
                             : 'admin.auditDismissed',
                           {
-                            type: e.target_type,
+                            type: t(reportTypeLabel(e.target_type)),
                             when: formatAgo(t, e.created_at),
                           },
                         )}

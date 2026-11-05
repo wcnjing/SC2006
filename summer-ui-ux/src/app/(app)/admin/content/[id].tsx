@@ -21,7 +21,7 @@ import {
 import { useT } from '@/context/SettingsContext';
 import { formatAgo } from '@/features/community/format';
 import { AuthorLine } from '@/features/community/PostCard';
-import { REPORT_STATUS } from '@/features/community/reportStatus';
+import { REPORT_STATUS, reportTypeLabel } from '@/features/community/reportStatus';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey, errorText } from '@/services';
 import { colors, spacing } from '@/theme/tokens';
@@ -121,7 +121,7 @@ export default function ReviewReportScreen() {
       </View>
       <AppText variant="caption" color={colors.textMuted}>
         {t('admin.reportedWhen', {
-          type: t(report.target_type === 'comment' ? 'admin.typeComment' : 'admin.typePost'),
+          type: t(reportTypeLabel(report.target_type)),
           when: formatAgo(t, report.created_at),
         })}
       </AppText>
@@ -174,7 +174,9 @@ export default function ReviewReportScreen() {
       <ConfirmDialog
         visible={confirmRemove}
         title={t('admin.removeTitle')}
-        body={t('admin.removeBody')}
+        body={t(
+          report.target_type === 'activity' ? 'admin.removeActivityBody' : 'admin.removeBody',
+        )}
         confirmLabel={t('admin.remove')}
         cancelLabel={t('common.cancel')}
         destructive

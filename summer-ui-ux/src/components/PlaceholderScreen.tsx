@@ -10,10 +10,11 @@ import {
   type IconName,
 } from '@/components/ui';
 import { useT } from '@/context/SettingsContext';
+import type { TranslationKey } from '@/i18n/en';
 import { colors, spacing } from '@/theme/tokens';
 
 type Props = {
-  title: string;
+  titleKey: TranslationKey;
   /** Teammate who owns this screen, per Plan.pdf, e.g. "P2 (Shyanne): Discovery". */
   owner: string;
   /** FR / use case references this screen implements. */
@@ -29,13 +30,14 @@ type Props = {
  * body when you build the screen; keep the route file name.
  */
 export function PlaceholderScreen({
-  title,
+  titleKey,
   owner,
   covers,
   icon = 'construct-outline',
   tabRoot,
 }: Props) {
   const t = useT();
+  const title = t(titleKey);
   return (
     <Screen inTabs={tabRoot} header={tabRoot ? <AppHeader /> : <ScreenHeader title={title} />}>
       {tabRoot && (

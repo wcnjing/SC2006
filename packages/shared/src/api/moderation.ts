@@ -162,6 +162,26 @@ export async function getModerationReport(
         removedReason: comment.removed_reason,
         parentPost: comment.parent,
       };
+  } else if (report.target_type === 'activity') {
+    const target = client
+      .from('activities')
+      .select('*, organiser:profiles!activities_organiser_id_fkey(id, display_name, avatar_url)')
+      .eq('id', report.target_id);
+    const response = await (signal ? target.abortSignal(signal) : target).maybeSingle();
+    const activity = unwrap(response);
+    if (activity)
+      content = {
+        id: activity.id,
+        type: 'activity',
+        authorId: activity.organiser_id ?? '',
+        author: activity.organiser,
+        body: `${activity.title}\n\n${activity.description}`,
+        imageUrl: null,
+        createdAt: activity.created_at,
+        isRemoved: activity.status === 'cancelled',
+        removedReason: activity.cancelled_reason,
+        parentPost: null,
+      };
   }
   return { report, content };
 }

@@ -131,12 +131,35 @@ it('reviews comment content with parent context and handles deleted or unsupport
   respond(null);
   expect((await getModerationReport(client, reportId))?.content).toBeNull();
   respond(admin);
-  respond({ ...report, target_type: 'activity' });
+  respond({ ...report, target_type: 'message' });
   expect((await getModerationReport(client, reportId))?.content).toBeNull();
   expect(request().url.pathname).toBe('/rest/v1/reports');
   respond(admin);
   respond(null);
   expect(await getModerationReport(client, reportId)).toBeNull();
+});
+
+it('reviews a reported activity as its organiser, title and description', async () => {
+  respond(admin);
+  respond({ ...report, target_type: 'activity' });
+  respond({
+    id: targetId,
+    organiser_id: adminId,
+    title: 'Morning walk',
+    description: 'Meet at the park',
+    status: 'cancelled',
+    cancelled_reason: 'Spam',
+    created_at: date,
+    organiser: null,
+  });
+  expect((await getModerationReport(client, reportId))?.content).toMatchObject({
+    type: 'activity',
+    authorId: adminId,
+    body: 'Morning walk\n\nMeet at the park',
+    isRemoved: true,
+    removedReason: 'Spam',
+  });
+  expect(request().url.pathname).toBe('/rest/v1/activities');
 });
 
 it('sends decisions only through the atomic audited RPC with server-derived reviewer identity', async () => {

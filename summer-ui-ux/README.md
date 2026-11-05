@@ -1,5 +1,7 @@
 # CommunityLink: app shell
 
+**This folder is the final CommunityLink app.** It runs every teammate's shared API (P1 auth and profile, P2 activities, P3 community and moderation, Xavier's Mockpass) behind one UI kit. The only screens still showing a placeholder are listed under [Still open](#still-open-other-owners).
+
 React Native + Expo (SDK 57) + TypeScript, running on web, iOS and Android from one codebase.
 Navigation uses Expo Router (file-based, `src/app/`). Backend: P1's Supabase (email + password login, using `@communitylink/shared` from `../packages/shared`) when `.env` is filled in; otherwise an in-device mock backend, so it also runs with no setup.
 
@@ -21,7 +23,7 @@ cp .env.example .env   # then fill in the two EXPO_PUBLIC_SUPABASE_* values
 
 Use the same URL and publishable key as `apps/mobile/.env`. For a local stack, follow `docs/start.md` / `npx supabase start`, then `npm run seed` at the repo root to create P1's test users. Restart `npm run web` after changing `.env`. With the keys set, login, sign-up, the session and the profile all go through P1's real API (`signIn`, `signUp`, `getMyProfile`, `updateMyProfile`); suspended accounts are signed out with the "account suspended" message. Leave `.env` empty (or set `EXPO_PUBLIC_BACKEND=mock`) to use the mock.
 
-**Singpass on Supabase (Xavier's Mockpass).** Xavier's `xavier` branch has a Mockpass bridge (`services/mockpass-auth`). Run it as `docs/start.md` on that branch describes, set `MOBILE_REDIRECT_URI=http://localhost:8081/mockpass/callback` for web (the default `communitylink://mockpass/callback` works in a development build, not in Expo Go), and put its URL in `EXPO_PUBLIC_MOCKPASS_AUTH_URL`. "Log in with Singpass" then opens Mockpass and returns to `src/app/(auth)/mockpass/callback.tsx`, which signs in with the returned tokens; new users go to Complete Your Profile. Without the bridge, the button opens the in-app mock consent screen (mock backend only).
+**Singpass on Supabase (Xavier's Mockpass).** The Mockpass bridge is merged in (`services/mockpass-auth`). Run it as `docs/start.md` describes, set `MOBILE_REDIRECT_URI=http://localhost:8081/mockpass/callback` for web (the default `communitylink://mockpass/callback` works in a development build, not in Expo Go), and put its URL in `EXPO_PUBLIC_MOCKPASS_AUTH_URL`. "Log in with Singpass" then opens Mockpass and returns to `src/app/(auth)/mockpass/callback.tsx`, which signs in with the returned tokens; new users go to Complete Your Profile. Without the bridge, the button opens the in-app mock consent screen (mock backend only).
 
 **Profile photos** upload to a Supabase Storage bucket named `avatars` (public read). P1's migrations don't create it yet; until they do, adding a photo shows "We couldn't upload your photo", and the profile still saves without it.
 
@@ -60,6 +62,8 @@ Mock activities are generated around Tampines relative to **today**, so "upcomin
 | Friends, user profile, block                 | `friend-requests.tsx` (`?tab=find`), `user/[id].tsx`, `blocked-users.tsx` | P3 connections + messaging                                                                       |
 | Messages                                     | `messages/index.tsx` (your friends), `messages/[id].tsx`                  | P3 messaging (DMs only between connected users)                                                  |
 | Admin moderation                             | `admin/index.tsx`, `admin/queue/[type].tsx`, `admin/content/[id].tsx`     | P3 moderation (remove / dismiss with a reason, audit log)                                        |
+| Search and filters (FR 4.1, 4.2)             | `search.tsx`                                                              | P2 `filterActivities` (keyword, neighbourhood, distance, category, date, accessibility, setting) |
+| Report activity (FR 8.4.3)                   | `activity/[id]/report.tsx`, `src/features/community/ReportForm.tsx`       | P3 `submitReport` with `targetType: 'activity'`; admin "remove" cancels the activity             |
 
 **What each role can do** (the UI follows the shared APIs; RLS is the real check):
 
@@ -69,7 +73,26 @@ Mock activities are generated around Tampines relative to **today**, so "upcomin
 | organiser | create, edit and cancel **own** scheduled, not-yet-started activities ("Manage activity" on its detail page); community | save / join / Discover / rate / My activities (P2 is resident-only); admin |
 | admin     | review reports, remove content, audit log (`can('report:review')`); community                                           | save / join / Discover / rate; managing activities                         |
 
-Notes for the team: P1's `rbac.ts` gives `activity:create` to admins too, but P2's `canManageActivity` accepts organisers only, so the shell follows P2. Not built yet: Admin users / verify (no "list users" API), activity reports (P3 reports only cover posts and comments), sharing a post, paging past 50 items (`shortcut:` comment in `mockCommunity.ts`).
+Notes for the team: P1's `rbac.ts` gives `activity:create` to admins too, but P2's `canManageActivity` accepts organisers only, so the shell follows P2.
+
+**Activity reports (backend change for Yining).** P3's reports only covered posts and comments. `supabase/migrations/20261105100000_activity_reports.sql` lets residents report a non-cancelled activity, and makes `review_content_report` cancel the activity on "remove" (with the admin's reason as `cancelled_reason`, logged to the audit log). `submitReport` and `getModerationReport` in `packages/shared` accept `activity`, with tests.
+
+## Final pass (P5, Week 10)
+
+| Item                    | What was done                                                                                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| i18n (NFR Multilingual) | Every string in English, 中文, Bahasa Melayu and தமிழ் (`src/i18n/{en,zh,ms,ta}.ts`), including dates, distances and recommendation reasons. Drafts: have a native speaker check them.                           |
+| WCAG 2.1 AA             | Input, select and chip outlines raised to 3.6:1 (1.4.11); all colour pairs checked (text ≥ 4.5:1); every control has a role and label; text size and reduce-motion settings; swipe has buttons and keyboard keys |
+| Consistency             | Every screen uses `Screen` + `ScreenHeader`/`AppHeader`, kit components and tokens; placeholder titles translated                                                                                                |
+| Bug bash / demo build   | `npx expo export -p web` builds; headless-Chrome run over every role and language with no errors; resident reports → admin removes → activity cancelled checked end to end                                       |
+
+## Still open (other owners)
+
+- **P4 (Xavier): map, location, weather, notifications** (`(tabs)/map.tsx`, `location/[id].tsx`, `weather/[id].tsx`, `notifications.tsx`). Placeholders on the real routes; build them with the kit as below. The bell on Home already links to `/notifications`.
+- **Plan cut list:** share post via DM (`post/[id]/share.tsx`) and admin verify-organiser queue (`admin/verify.tsx`). Admin users (`admin/users.tsx`) needs a "list users" API from P1/P3.
+- **P2 migrations** are still in `docs/proposals/migrations/`, not `supabase/migrations/`, so a fresh database has no join / skip / management / rating RPCs. Shyanne and P1 should adopt them before demoing on Supabase.
+- **P1:** an `avatars` Storage bucket for profile photos.
+- Paging past 50 items (`shortcut:` comment in `mockCommunity.ts`).
 
 ## What's built (P5, Week 9)
 
@@ -97,7 +120,7 @@ Notes for the team: P1's `rbac.ts` gives `activity:create` to admins too, but P2
 | Settings               | `src/app/(app)/settings.tsx`: language, text size, reduce motion                                                  |
 | Role-based routing     | `organiser/_layout.tsx`, `admin/_layout.tsx` redirect users without the role                                      |
 | Session timeout        | `src/context/AuthContext.tsx`: logs out after 30 min of inactivity (NFR Session Management)                       |
-| i18n scaffolding       | `src/i18n/`: English complete; 中文 / Melayu / தமிழ் fall back to English per key                                 |
+| i18n scaffolding       | `src/i18n/`: per-key fallback to English (fully translated in Week 10)                                            |
 | Placeholder screens    | Every Dialog Map screen has a real route with its owner and FRs listed on it                                      |
 
 ## For P2, P3 and P4: building your screens
@@ -142,7 +165,7 @@ It imports P1's shared package directly from `../packages/shared/src` (path alia
 
 ## For P2 (Shyanne): plugging in the real activity API
 
-**Status (Week 10):** `shyanne` and `yining` are merged into `summer/week10-integration`. With `.env` keys set, `activityService` is `src/services/supabase/activities.ts` (the table below) and `communityService` is `src/services/supabase/community.ts`. Without keys (or `EXPO_PUBLIC_BACKEND=mock`) both run on the in-device mocks.
+**Status (final):** `shyanne`, `yining` and `xavier` are merged into `summer/final`. With `.env` keys set, `activityService` is `src/services/supabase/activities.ts` (the table below) and `communityService` is `src/services/supabase/community.ts`. Without keys (or `EXPO_PUBLIC_BACKEND=mock`) both run on the in-device mocks.
 
 `ActivityService` in `src/services/types.ts` is a 1:1 wrapper over the functions on the `shyanne` branch, and the types in `src/types/models.ts` (`Activity`, `ActivityRecommendation`, `MyActivityCollections`, …) are copies of the shared ones, snake_case included. A Supabase implementation is mostly one-liners:
 

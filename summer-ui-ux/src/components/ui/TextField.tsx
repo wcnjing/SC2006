@@ -25,7 +25,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
   const { t, textScale } = useSettings();
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(true);
-  const borderColor = error ? colors.error : focused ? colors.text : colors.border;
+  const borderColor = error ? colors.error : focused ? colors.text : colors.borderStrong;
 
   return (
     <View style={styles.wrap}>

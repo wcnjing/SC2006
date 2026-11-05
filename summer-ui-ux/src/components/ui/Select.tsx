@@ -57,7 +57,7 @@ export function Select<T extends string>({
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           styles.field,
-          { borderColor: error ? colors.error : colors.border, borderWidth: error ? 2 : 1.5 },
+          { borderColor: error ? colors.error : colors.borderStrong, borderWidth: error ? 2 : 1.5 },
           pressed && { backgroundColor: colors.surfaceMuted },
         ]}
       >

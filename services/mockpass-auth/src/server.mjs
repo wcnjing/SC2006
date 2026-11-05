@@ -14,8 +14,7 @@ dotenv.config({ path: path.resolve(serviceDirectory, '.env'), override: true });
 const port = Number(process.env.MOCKPASS_AUTH_PORT ?? 3000);
 const mockpassUrl = process.env.MOCKPASS_URL ?? 'http://127.0.0.1:5156';
 const backendUrl = process.env.MOCKPASS_AUTH_URL ?? `http://127.0.0.1:${port}`;
-const mobileRedirectUri =
-  process.env.MOBILE_REDIRECT_URI ?? 'communitylink://mockpass/callback';
+const mobileRedirectUri = process.env.MOBILE_REDIRECT_URI ?? 'communitylink://mockpass/callback';
 const clientId = 'communitylink-local';
 const redirectUri = `${backendUrl}/auth/mockpass/callback`;
 
@@ -27,9 +26,7 @@ for (const name of required) {
 const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
-const mockpassKeys = createRemoteJWKSet(
-  new URL(`${mockpassUrl}/singpass/v2/.well-known/keys`),
-);
+const mockpassKeys = createRemoteJWKSet(new URL(`${mockpassUrl}/singpass/v2/.well-known/keys`));
 const pendingStates = new Map();
 
 function createState() {

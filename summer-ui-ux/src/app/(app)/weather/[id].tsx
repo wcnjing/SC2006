@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function WeatherWarningScreen() {
   return (
     <PlaceholderScreen
-      title="Weather warning"
+      titleKey="placeholder.weather"
       owner="P4: Integrations & Notifications"
       covers={['FR 10.1 weather warnings', 'UC GenerateWeatherWarnings']}
       icon="thunderstorm-outline"

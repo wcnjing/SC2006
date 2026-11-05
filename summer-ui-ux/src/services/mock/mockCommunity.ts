@@ -23,6 +23,7 @@ import { findNeighbourhood } from '@/config/catalog';
 import { readJSON, writeJSON } from '@/lib/storage';
 
 import { ServiceError, type CommunityService } from '../types';
+import { cancelMockActivity, findMockActivity, mockOrganiserName } from './mockActivities';
 import { currentMockUser, MOCK_IDS, mockPeople, mockUuid } from './mockBackend';
 
 /**
@@ -273,6 +274,13 @@ const author = (id: string) => {
   return p && { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url };
 };
 
+const openActivity = (id: string) => {
+  const a = findMockActivity(id);
+  return a && a.status !== 'cancelled' ? a : null;
+};
+const organiser = (id: string | null) =>
+  id ? (author(id) ?? { id, display_name: mockOrganiserName(id) ?? '', avatar_url: null }) : null;
+
 const fail = (message: string, code: string): never => {
   throw new ApiError(message, code);
 };
@@ -439,7 +447,9 @@ export const mockCommunity: CommunityService = {
       const target =
         input.targetType === 'post'
           ? visiblePost(s, me, input.targetId)
-          : s.comments.find((c) => c.id === input.targetId && !c.is_removed);
+          : input.targetType === 'activity'
+            ? openActivity(input.targetId)
+            : s.comments.find((c) => c.id === input.targetId && !c.is_removed);
       if (!target) fail('This content is no longer available.', 'not_found');
       const report: Report = {
         id: input.requestId ?? mockUuid(),
@@ -488,6 +498,23 @@ export const mockCommunity: CommunityService = {
         report.target_type === 'comment' && s.comments.find((c) => c.id === report.target_id);
       const parent = comment && s.posts.find((p) => p.id === comment.post_id);
       const row = post || comment;
+      const activity = report.target_type === 'activity' && findMockActivity(report.target_id);
+      if (activity)
+        return {
+          report,
+          content: {
+            id: activity.id,
+            type: 'activity' as const,
+            authorId: activity.organiser_id ?? '',
+            author: organiser(activity.organiser_id),
+            body: `${activity.title}\n\n${activity.description}`,
+            imageUrl: null,
+            createdAt: activity.created_at,
+            isRemoved: activity.status === 'cancelled',
+            removedReason: activity.cancelled_reason,
+            parentPost: null,
+          },
+        };
       return {
         report,
         content: row
@@ -522,6 +549,9 @@ export const mockCommunity: CommunityService = {
           s.posts.find((p) => p.id === report.target_id) ??
           s.comments.find((c) => c.id === report.target_id);
         if (target) Object.assign(target, { is_removed: true, removed_reason: reason.trim() });
+        const activity = report.target_type === 'activity' && findMockActivity(report.target_id);
+        if (activity && activity.status !== 'cancelled')
+          void cancelMockActivity(activity, reason.trim());
       }
       Object.assign(report, {
         status: action === 'remove' ? 'actioned' : 'dismissed',

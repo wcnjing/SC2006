@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function ManageUsersScreen() {
   return (
     <PlaceholderScreen
-      title="Manage users"
+      titleKey="admin.manageUsers"
       owner="P3 (Yining): Social & Admin"
       covers={['FR 12.1.3 suspend accounts']}
       icon="people-outline"

@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     borderRadius: radii.md,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
   },
   notice: { gap: spacing.sm },
   start: { alignSelf: 'flex-start' },

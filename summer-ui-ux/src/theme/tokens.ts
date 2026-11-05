@@ -22,7 +22,7 @@ export const colors = {
   textMuted: '#475467', // 7.6:1 on white
   textSubtle: '#667085', // 4.8:1 on white (placeholders, captions)
   border: '#D0D5DD',
-  borderStrong: '#98A2B3',
+  borderStrong: '#7D8798', // 3.6:1 on white: input / chip / checkbox outlines (WCAG 1.4.11)
   divider: '#EAECF0',
   surface: '#FFFFFF',
   surfaceMuted: '#F2F4F7', // grey cards / inputs-on-grey

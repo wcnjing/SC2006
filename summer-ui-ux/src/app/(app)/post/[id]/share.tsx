@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function SharePostScreen() {
   return (
     <PlaceholderScreen
-      title="Share post"
+      titleKey="placeholder.sharePost"
       owner="P3 (Yining): Social & Admin"
       covers={['FR 8.3.3', 'UC SharePost']}
       icon="share-social-outline"

@@ -150,7 +150,8 @@ export const en = {
   // Settings
   'settings.title': 'Settings',
   'settings.language': 'Language',
-  'settings.languageHint': 'Some screens are still only available in English.',
+  'settings.languageHint':
+    'Posts, activities and messages stay in the language they were written in.',
   'settings.textSize': 'Text size',
   'settings.textSize.default': 'Default',
   'settings.textSize.large': 'Large',
@@ -181,6 +182,23 @@ export const en = {
   'home.nearbyEmpty': 'Nothing else is happening near you this week.',
   'home.browseAll': 'Browse all activities',
   'home.loadError': 'We could not load activities. Check your connection and try again.',
+  'search.title': 'Search activities',
+  'search.any': 'Any',
+  'search.filters': 'Filters',
+  'search.filtersCount': 'Filters ({count})',
+  'search.clear': 'Clear filters',
+  'search.distance': 'Distance from {place}',
+  'search.withinKm': 'Within {km} km',
+  'search.category': 'Category',
+  'search.date': 'Date',
+  'search.dateToday': 'Today',
+  'search.dateWeek': 'Next 7 days',
+  'search.dateMonth': 'Next 30 days',
+  'search.setting': 'Indoor or outdoor',
+  'search.accessibility': 'Accessibility',
+  'search.count': '{count} activities found',
+  'search.emptyTitle': 'No matching activities',
+  'search.emptyBody': 'Try another keyword or fewer filters.',
 
   // Recommendation reasons (FR 5.1.6). Built on the device from structured data, so they translate.
   'reason.interestNear': 'Recommended because you like {interests} and it is {distance} away',
@@ -193,6 +211,8 @@ export const en = {
   // Shared activity bits
   'activity.distanceM': '{value} m away',
   'activity.distanceKm': '{value} km away',
+  'activity.unitM': '{value} m',
+  'activity.unitKm': '{value} km',
   'activity.indoor': 'Indoor',
   'activity.outdoor': 'Outdoor',
   'activity.free': 'Free',
@@ -262,7 +282,7 @@ export const en = {
   'detail.leaveConfirm': 'Cancel my spot',
   'detail.leaveKeep': 'Keep my spot',
   'detail.unavailableTitle': 'Activity no longer available',
-  'detail.unavailableBody': 'This activity has been cancelled or removed by the organiser.',
+  'detail.unavailableBody': 'This activity has been cancelled or removed.',
 
   // My activities (Dialog Map: displayUpcomingSavedPast)
   'myActivities.title': 'My activities',
@@ -290,6 +310,9 @@ export const en = {
   // Placeholder screens
   'placeholder.body': 'This screen is part of the shell. Its content will be built by {owner}.',
   'placeholder.covers': 'Covers',
+  'placeholder.location': 'Location',
+  'placeholder.sharePost': 'Share post',
+  'placeholder.weather': 'Weather warning',
 
   // Neighbourhoods (P1 reference data)
   'neighbourhood.angMoKio': 'Ang Mo Kio',
@@ -348,7 +371,7 @@ export const en = {
   'home.organiserTitle': 'Your activities',
   'home.organiserBody': 'Create, edit or cancel the activities you organise.',
   'home.adminTitle': 'Moderation',
-  'home.adminBody': 'Review reported posts and comments.',
+  'home.adminBody': 'Review reported posts, comments and activities.',
   'profile.myReports': 'My reports',
   'profile.blockedUsers': 'Blocked users',
 
@@ -521,11 +544,12 @@ export const en = {
   'admin.reportsTitle': 'Reports to review',
   'admin.reportedPosts': 'Reported posts',
   'admin.reportedComments': 'Reported comments',
+  'admin.reportedActivities': 'Reported activities',
   'admin.openCount': '{count} open',
   'admin.auditTitle': 'Recent decisions',
   'admin.auditEmpty': 'No decisions yet.',
-  'admin.auditRemoved': 'Removed a {type}, {when}',
-  'admin.auditDismissed': 'Dismissed a report on a {type}, {when}',
+  'admin.auditRemoved': 'Removed: {type} · {when}',
+  'admin.auditDismissed': 'Report dismissed: {type} · {when}',
   'admin.accountsTitle': 'Accounts',
   'admin.manageUsers': 'Manage users',
   'admin.verifyOrganisers': 'Verify organisers',
@@ -536,6 +560,7 @@ export const en = {
   'admin.queueEmpty': 'Nothing to review',
   'admin.typePost': 'Post',
   'admin.typeComment': 'Comment',
+  'admin.typeActivity': 'Activity',
   'admin.reviewTitle': 'Review report',
   'admin.reportMissing': 'This report no longer exists',
   'admin.reportedWhen': '{type} reported {when}',
@@ -547,6 +572,8 @@ export const en = {
   'admin.reasonHint': 'Saved in the audit log and shown to the reporter.',
   'admin.decisionTitle': 'Decision',
   'admin.remove': 'Remove content',
+  'admin.removeActivityBody':
+    'The activity will be cancelled for everyone, with your reason shown. The decision is recorded in the audit log.',
   'admin.dismiss': 'Dismiss report',
   'admin.removeTitle': 'Remove this content?',
   'admin.removeBody': 'It will be hidden from everyone. The decision is recorded in the audit log.',

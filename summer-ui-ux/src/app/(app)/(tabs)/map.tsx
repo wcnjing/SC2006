@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function MapScreen() {
   return (
     <PlaceholderScreen
-      title="Map"
+      titleKey="tab.map"
       owner="P4: Integrations & Notifications"
       covers={['FR 6.1 nearby community locations', 'UC ViewMapLocations']}
       icon="map-outline"

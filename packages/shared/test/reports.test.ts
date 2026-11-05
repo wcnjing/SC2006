@@ -101,6 +101,12 @@ describe('report submission', () => {
     });
   });
 
+  it('supports reporting an activity (FR 8.4.3)', async () => {
+    respond({ ...report, target_type: 'activity' });
+    await submitReport(client, { targetType: 'activity', targetId, reason: 'Spam' });
+    expect(request().body).toMatchObject({ target_type: 'activity', target_id: targetId });
+  });
+
   it('rejects invalid content, target types and UUIDs without making requests', async () => {
     for (const bad of [
       { ...input, reason: ' \t\n ' },

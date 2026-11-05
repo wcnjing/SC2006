@@ -11,7 +11,7 @@ import {
 } from '@/components/ui';
 import { useT } from '@/context/SettingsContext';
 import { formatAgo } from '@/features/community/format';
-import { REPORT_STATUS } from '@/features/community/reportStatus';
+import { REPORT_STATUS, reportTypeLabel } from '@/features/community/reportStatus';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey } from '@/services';
 import { colors, spacing } from '@/theme/tokens';
@@ -46,8 +46,7 @@ export default function MyReportsScreen() {
             <View key={r.id} style={styles.row}>
               <View style={styles.head}>
                 <AppText variant="label" style={styles.flex}>
-                  {t(r.target_type === 'comment' ? 'admin.typeComment' : 'admin.typePost')} ·{' '}
-                  {r.reason}
+                  {t(reportTypeLabel(r.target_type))} · {r.reason}
                 </AppText>
                 <Tag label={t(REPORT_STATUS[r.status].label)} tone={REPORT_STATUS[r.status].tone} />
               </View>

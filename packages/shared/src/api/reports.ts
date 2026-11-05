@@ -4,7 +4,7 @@ import { ApiError, unwrap, type CommunityLinkClient } from './client';
 
 export const REPORT_REASON_MAX_LENGTH = 100;
 export const REPORT_DETAILS_MAX_LENGTH = 1000;
-export type ContentReportTarget = Extract<ReportTarget, 'post' | 'comment'>;
+export type ContentReportTarget = Extract<ReportTarget, 'post' | 'comment' | 'activity'>;
 // Reviewer identity is unnecessary on the reporter's history screen.
 export type SubmittedReport = Omit<Report, 'reviewed_by'>;
 export interface SubmitReportInput {
@@ -48,8 +48,8 @@ export async function submitReport(
   client: CommunityLinkClient,
   input: SubmitReportInput,
 ): Promise<SubmittedReport> {
-  if (input.targetType !== 'post' && input.targetType !== 'comment')
-    throw new ApiError('You can report a post or comment here.', 'validation');
+  if (!['post', 'comment', 'activity'].includes(input.targetType))
+    throw new ApiError('You can report a post, comment or activity here.', 'validation');
   validId(input.targetId);
   if (input.requestId !== undefined) validId(input.requestId);
   const invalid = validateReportContent(input.reason, input.details);

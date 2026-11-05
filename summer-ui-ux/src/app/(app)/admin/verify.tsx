@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function VerifyOrganisersScreen() {
   return (
     <PlaceholderScreen
-      title="Verify organisers"
+      titleKey="admin.verifyOrganisers"
       owner="P3 (Yining): Social & Admin"
       covers={['Data dictionary: Administrator approves Organiser accounts']}
       icon="checkmark-done-outline"

@@ -99,5 +99,5 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   selected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  unselected: { backgroundColor: colors.surface, borderColor: colors.border },
+  unselected: { backgroundColor: colors.surface, borderColor: colors.borderStrong },
 });

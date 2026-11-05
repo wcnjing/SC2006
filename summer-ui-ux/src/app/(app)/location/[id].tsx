@@ -4,7 +4,7 @@ import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 export default function LocationScreen() {
   return (
     <PlaceholderScreen
-      title="Location"
+      titleKey="placeholder.location"
       owner="P4: Integrations & Notifications"
       covers={['FR 6.1.4–6.1.5 name, address, distance']}
       icon="location-outline"

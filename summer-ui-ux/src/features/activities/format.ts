@@ -47,8 +47,8 @@ export function formatDistance(t: T, km: number | null | undefined): string | nu
 export function formatDistanceShort(t: T, km: number | null | undefined): string | null {
   if (km === null || km === undefined || !Number.isFinite(km)) return null;
   return km < 1
-    ? `${Math.max(50, Math.round((km * 1000) / 50) * 50)} m`
-    : `${km < 10 ? km.toFixed(1) : Math.round(km)} km`;
+    ? t('activity.unitM', { value: Math.max(50, Math.round((km * 1000) / 50) * 50) })
+    : t('activity.unitKm', { value: km < 10 ? km.toFixed(1) : Math.round(km) });
 }
 
 export const categoryLabel = (t: T, id: string) => {
