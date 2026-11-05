@@ -1,0 +1,14 @@
+{
+  "name": "@communitylink/mockpass-auth",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "jose": "^5.2.3"
+  }
+}
