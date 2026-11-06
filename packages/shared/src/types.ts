@@ -16,6 +16,7 @@ export type ReportStatus = Enums<'report_status'>;
 export type Neighbourhood = Tables<'neighbourhoods'>;
 export type Profile = Tables<'profiles'>;
 export type Activity = Tables<'activities'>;
+export type ActivityBookmark = Tables<'activity_bookmarks'>;
 export type ActivityParticipant = Tables<'activity_participants'>;
 export type ActivityRating = Tables<'activity_ratings'>;
 export type Post = Tables<'posts'>;

@@ -3,10 +3,13 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "services/mockpass-auth"
   ],
   "scripts": {
     "mobile": "npm run start --workspace apps/mobile",
+    "web:demo": "npm run web:demo --workspace apps/mobile",
+    "mockpass": "npm start --workspace services/mockpass-auth",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:db": "npm run test:db --workspace packages/shared",
@@ -17,7 +20,8 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "supabase": "^2.119.0"
   },
   "engines": {
     "node": ">=22"

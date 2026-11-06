@@ -2,6 +2,7 @@
 //   supabase start && npm run test:db
 // Refuses to run against anything but localhost, because it creates users.
 import { execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '../src/database.types';
@@ -15,6 +16,36 @@ import {
   signUp,
   updateMyProfile,
   type CommunityLinkClient,
+  createPost,
+  getPost,
+  listPosts,
+  updatePost,
+  deletePost,
+  createComment,
+  listComments,
+  updateComment,
+  deleteComment,
+  getPostLikeState,
+  setPostLiked,
+  submitReport,
+  listMyReports,
+  listModerationReports,
+  getModerationReport,
+  reviewContentReport,
+  listModerationAudit,
+  sendConnectionRequest,
+  acceptConnectionRequest,
+  rejectConnectionRequest,
+  cancelConnectionRequest,
+  listConnections,
+  findConnectionPeople,
+  connectionRequestRef,
+  sendDirectMessage,
+  listDirectMessages,
+  getDirectConversation,
+  blockUser,
+  unblockUser,
+  listBlockedUsers,
 } from '../src';
 
 // Connection details come from the running local stack (`supabase status`),
@@ -206,28 +237,29 @@ describe('social rules', () => {
     const before = await resident.client.from('posts').select('id').eq('id', post!.id);
     expect(before.data).toHaveLength(1);
 
-    await resident.client.from('blocks').insert({ blocker_id: resident.id, blocked_id: other.id });
+    await blockUser(resident.client, other.id);
     const after = await resident.client.from('posts').select('id').eq('id', post!.id);
     expect(after.data).toHaveLength(0);
 
-    await resident.client.from('blocks').delete().eq('blocked_id', other.id);
+    await unblockUser(resident.client, other.id);
   });
 
   it('only allows DMs between accepted connections', async () => {
     const dm = { sender_id: resident.id, recipient_id: organiser.id, body: 'hello' };
     const blocked = await resident.client.from('messages').insert(dm);
     expect(blocked.error?.code).toBe('42501');
+    await expect(
+      sendDirectMessage(resident.client, { recipientId: organiser.id, body: dm.body }),
+    ).rejects.toMatchObject({ code: '42501' });
 
-    await resident.client
-      .from('connections')
-      .insert({ requester_id: resident.id, addressee_id: organiser.id });
-    await organiser.client
-      .from('connections')
-      .update({ status: 'accepted', responded_at: new Date().toISOString() })
-      .eq('requester_id', resident.id);
+    const request = await sendConnectionRequest(resident.client, organiser.id);
+    await acceptConnectionRequest(organiser.client, connectionRequestRef(request));
 
-    const allowed = await resident.client.from('messages').insert(dm);
-    expect(allowed.error).toBeNull();
+    const allowed = await sendDirectMessage(resident.client, {
+      recipientId: organiser.id,
+      body: dm.body,
+    });
+    expect(allowed.sender_id).toBe(resident.id);
   });
 
   it('only lets participants rate activities that have ended', async () => {
@@ -258,5 +290,1042 @@ describe('social rules', () => {
   it('keeps edits to own profile working', async () => {
     const updated = await updateMyProfile(resident.client, { display_name: '  Uncle Tan ' });
     expect(updated.display_name).toBe('Uncle Tan');
+  });
+});
+
+describe('P3 posts and neighbourhood feeds', () => {
+  let neighbourhoodId: number;
+  beforeAll(async () => {
+    const { data, error } = await service
+      .from('neighbourhoods')
+      .insert({ name: `P3 test ${runId}`, lat: 1.3, lng: 103.8 })
+      .select('id')
+      .single();
+    if (error) throw error;
+    neighbourhoodId = data.id;
+  });
+
+  it('reuses the same post when a draft is submitted again after a lost response', async () => {
+    const input = { body: 'Retry me', neighbourhoodId, requestId: randomUUID() };
+    const first = await createPost(resident.client, input);
+    const retry = await createPost(resident.client, input);
+    expect(retry.id).toBe(first.id);
+    const changed = await createPost(resident.client, { ...input, body: 'Changed before retry' });
+    expect(changed.id).toBe(first.id);
+    expect(changed.body).toBe('Changed before retry');
+    await deletePost(resident.client, first.id);
+  });
+
+  it('creates, reads, edits and deletes an own post using the shared API', async () => {
+    const post = await createPost(resident.client, {
+      body: '  Hello neighbourhood  ',
+      neighbourhoodId,
+    });
+    expect(post.body).toBe('Hello neighbourhood');
+    expect(post.author?.display_name).toBeTruthy();
+    expect(post.author && Object.keys(post.author).sort()).toEqual([
+      'avatar_url',
+      'display_name',
+      'id',
+    ]);
+    expect((await getPost(other.client, post.id))?.body).toBe('Hello neighbourhood');
+    await expect(updatePost(other.client, post.id, { body: 'hacked' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(deletePost(other.client, post.id)).rejects.toMatchObject({ code: 'not_found' });
+    expect((await updatePost(resident.client, post.id, { body: 'Updated' })).body).toBe('Updated');
+    await deletePost(resident.client, post.id);
+    expect(await getPost(resident.client, post.id)).toBeNull();
+  });
+
+  it('paginates tied timestamps without duplicates and excludes removed and other-neighbourhood posts', async () => {
+    const createdAt = new Date().toISOString();
+    const { data, error } = await service
+      .from('posts')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          author_id: resident.id,
+          neighbourhood_id: neighbourhoodId,
+          body: `Pagination ${i}`,
+          created_at: createdAt,
+        })),
+      )
+      .select('id');
+    if (error) throw error;
+    const excluded = await service.from('posts').insert([
+      {
+        author_id: resident.id,
+        neighbourhood_id: neighbourhoodId,
+        body: 'Removed',
+        is_removed: true,
+      },
+      { author_id: resident.id, neighbourhood_id: 1, body: 'Other neighbourhood' },
+    ]);
+    if (excluded.error) throw excluded.error;
+    const ids: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listPosts>>['nextCursor'] = null;
+    do {
+      const page = await listPosts(resident.client, { neighbourhoodId, limit: 2, cursor });
+      ids.push(...page.posts.map((post) => post.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+    expect(ids).toEqual(
+      data
+        .map((row) => row.id)
+        .sort()
+        .reverse(),
+    );
+  });
+
+  it('enforces authorship, nonblank bodies and database-owned timestamps for direct clients', async () => {
+    const blank = await resident.client
+      .from('posts')
+      .insert({ author_id: resident.id, body: ' \n\t ' });
+    expect(blank.error?.code).toBe('23514');
+    const spoof = await resident.client
+      .from('posts')
+      .insert({ author_id: other.id, body: 'spoof' });
+    expect(spoof.error?.code).toBe('42501');
+    const backdated = await resident.client
+      .from('posts')
+      .insert({ author_id: resident.id, body: 'backdated', created_at: hourAgo() });
+    expect(backdated.error?.code).toBe('42501');
+    const post = await createPost(resident.client, { body: 'Original', neighbourhoodId });
+    const edit = await other.client
+      .from('posts')
+      .update({ body: 'hacked' })
+      .eq('id', post.id)
+      .select('id');
+    expect(edit.data).toEqual([]);
+    const metadata = await resident.client
+      .from('posts')
+      .update({ is_removed: true })
+      .eq('id', post.id);
+    expect(metadata.error?.code).toBe('42501');
+    await deletePost(resident.client, post.id);
+  });
+
+  it('hides blocked authors and removed content, including from its author in the normal feed', async () => {
+    const post = await createPost(resident.client, { body: 'Visibility', neighbourhoodId });
+    try {
+      await blockUser(other.client, resident.id);
+      expect(await getPost(other.client, post.id)).toBeNull();
+      expect(
+        (await listPosts(other.client, { neighbourhoodId })).posts.some((p) => p.id === post.id),
+      ).toBe(false);
+    } finally {
+      await unblockUser(other.client, resident.id);
+    }
+    const removal = await service.from('posts').update({ is_removed: true }).eq('id', post.id);
+    if (removal.error) throw removal.error;
+    expect(await getPost(resident.client, post.id)).toBeNull();
+    await expect(updatePost(resident.client, post.id, { body: 'Restore' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    const direct = await resident.client
+      .from('posts')
+      .update({ body: 'Evade moderation' })
+      .eq('id', post.id)
+      .select('id');
+    expect(direct.data).toEqual([]);
+  });
+
+  it('prevents suspended authors from editing and deleting, even with an existing session', async () => {
+    const post = await createPost(other.client, { body: 'Before suspension', neighbourhoodId });
+    await setUserStatus(admin.client, other.id, 'suspended', 'P3 test');
+    try {
+      await expect(
+        updatePost(other.client, post.id, { body: 'After suspension' }),
+      ).rejects.toMatchObject({ code: 'not_found' });
+      await expect(deletePost(other.client, post.id)).rejects.toMatchObject({ code: 'not_found' });
+    } finally {
+      await setUserStatus(admin.client, other.id, 'active');
+    }
+    await deletePost(other.client, post.id);
+  });
+});
+
+describe('P3 comments and likes', () => {
+  it('supports author comment CRUD, idempotent retries and one like per user', async () => {
+    const post = await createPost(resident.client, { body: 'Discuss here', neighbourhoodId: 1 });
+    const input = { postId: post.id, body: 'Hello neighbours', requestId: randomUUID() };
+    const comment = await createComment(other.client, input);
+    expect((await createComment(other.client, input)).id).toBe(comment.id);
+    expect((await listComments(resident.client, post.id)).comments.map((row) => row.id)).toEqual([
+      comment.id,
+    ]);
+    expect(comment.author && Object.keys(comment.author).sort()).toEqual([
+      'avatar_url',
+      'display_name',
+      'id',
+    ]);
+    await expect(updateComment(resident.client, comment.id, 'Not mine')).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(deleteComment(resident.client, comment.id)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    expect((await updateComment(other.client, comment.id, 'Edited')).body).toBe('Edited');
+    await setPostLiked(resident.client, post.id, true);
+    expect(await setPostLiked(resident.client, post.id, true)).toEqual({
+      likeCount: 1,
+      likedByMe: true,
+    });
+    expect(await getPostLikeState(other.client, post.id)).toEqual({
+      likeCount: 1,
+      likedByMe: false,
+    });
+    await setPostLiked(other.client, post.id, true);
+    expect(await setPostLiked(resident.client, post.id, false)).toEqual({
+      likeCount: 1,
+      likedByMe: false,
+    });
+    await deleteComment(other.client, comment.id);
+    expect((await listComments(resident.client, post.id)).comments).toEqual([]);
+    await createComment(other.client, { postId: post.id, body: 'Cascade me' });
+    await deletePost(resident.client, post.id);
+    expect((await service.from('comments').select('id').eq('post_id', post.id)).data).toEqual([]);
+    expect(
+      (await service.from('post_likes').select('post_id').eq('post_id', post.id)).data,
+    ).toEqual([]);
+  });
+
+  it('rejects direct metadata/authorship spoofing and whitespace-only comments', async () => {
+    const post = await createPost(resident.client, {
+      body: 'Protected interaction data',
+      neighbourhoodId: 1,
+    });
+    const row = { author_id: resident.id, post_id: post.id, body: 'Hello' };
+    expect(
+      (await resident.client.from('comments').insert({ ...row, body: ' \n\t ' })).error?.code,
+    ).toBe('23514');
+    expect(
+      (await resident.client.from('comments').insert({ ...row, author_id: other.id })).error?.code,
+    ).toBe('42501');
+    expect(
+      (await resident.client.from('comments').insert({ ...row, created_at: hourAgo() })).error
+        ?.code,
+    ).toBe('42501');
+    expect(
+      (await resident.client.from('comments').insert({ ...row, is_removed: true })).error?.code,
+    ).toBe('42501');
+    expect(
+      (await resident.client.from('post_likes').insert({ post_id: post.id, user_id: other.id }))
+        .error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await resident.client
+          .from('post_likes')
+          .insert({ post_id: post.id, user_id: resident.id, created_at: hourAgo() })
+      ).error?.code,
+    ).toBe('42501');
+    await deletePost(resident.client, post.id);
+  });
+
+  it('hides interactions on blocked/removed posts and prevents new interactions', async () => {
+    const post = await createPost(resident.client, { body: 'Visibility', neighbourhoodId: 1 });
+    const comment = await createComment(other.client, { postId: post.id, body: 'Own comment' });
+    await setPostLiked(other.client, post.id, true);
+    await blockUser(other.client, resident.id);
+    try {
+      expect((await listComments(other.client, post.id)).comments).toEqual([]);
+      await expect(getPostLikeState(other.client, post.id)).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      await expect(
+        createComment(other.client, { postId: post.id, body: 'Blocked' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(updateComment(other.client, comment.id, 'Blocked edit')).rejects.toMatchObject({
+        code: 'not_found',
+      });
+    } finally {
+      await unblockUser(other.client, resident.id);
+    }
+    const removal = await service.from('posts').update({ is_removed: true }).eq('id', post.id);
+    if (removal.error) throw removal.error;
+    expect((await listComments(other.client, post.id)).comments).toEqual([]);
+    await expect(setPostLiked(resident.client, post.id, true)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(deleteComment(other.client, comment.id)).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    const likes = await other.client.from('post_likes').select('user_id').eq('post_id', post.id);
+    expect(likes.data).toEqual([]);
+    await service.from('posts').delete().eq('id', post.id);
+  });
+
+  it('prevents suspended users from creating/editing/deleting comments and changing likes', async () => {
+    const post = await createPost(resident.client, { body: 'Suspension test', neighbourhoodId: 1 });
+    const comment = await createComment(other.client, {
+      postId: post.id,
+      body: 'Before suspension',
+    });
+    await setPostLiked(other.client, post.id, true);
+    await setUserStatus(admin.client, other.id, 'suspended', 'Interaction test');
+    try {
+      await expect(
+        createComment(other.client, { postId: post.id, body: 'Denied' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(updateComment(other.client, comment.id, 'Denied')).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      await expect(deleteComment(other.client, comment.id)).rejects.toMatchObject({
+        code: 'not_found',
+      });
+      await expect(setPostLiked(other.client, post.id, false)).rejects.toMatchObject({
+        code: '42501',
+      });
+    } finally {
+      await setUserStatus(admin.client, other.id, 'active');
+    }
+    await deletePost(resident.client, post.id);
+  });
+
+  it('paginates comments with identical timestamps in chronological order', async () => {
+    const post = await createPost(resident.client, { body: 'Comment pages', neighbourhoodId: 1 });
+    const created_at = new Date().toISOString();
+    const inserted = await service
+      .from('comments')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          post_id: post.id,
+          author_id: other.id,
+          body: `Page ${i}`,
+          created_at,
+        })),
+      )
+      .select('id');
+    if (inserted.error) throw inserted.error;
+    let cursor: Awaited<ReturnType<typeof listComments>>['nextCursor'] = null;
+    const ids: string[] = [];
+    for (let pageNumber = 0; pageNumber < 5; pageNumber++) {
+      const page = await listComments(resident.client, post.id, { limit: 2, cursor });
+      ids.unshift(...page.comments.map((row) => row.id));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(cursor).toBeNull();
+    expect(ids).toEqual(inserted.data.map((row) => row.id).sort());
+    await deletePost(resident.client, post.id);
+  });
+});
+
+describe('P3 reports', () => {
+  it('lets residents report posts/comments and keeps history private, immutable and durable', async () => {
+    const post = await createPost(resident.client, { body: 'Report target', neighbourhoodId: 1 });
+    const comment = await createComment(resident.client, {
+      postId: post.id,
+      body: 'Comment target',
+    });
+    const input = {
+      targetType: 'post' as const,
+      targetId: post.id,
+      reason: 'Spam',
+      requestId: randomUUID(),
+    };
+    const report = await submitReport(other.client, input);
+    const commentReport = await submitReport(other.client, {
+      targetType: 'comment',
+      targetId: comment.id,
+      reason: 'Harassment',
+    });
+    expect((await submitReport(other.client, input)).id).toBe(report.id);
+    expect(report.reporter_id).toBe(other.id);
+    expect(report.status).toBe('open');
+    expect(
+      (await resident.client.from('reports').select('id').in('id', [report.id, commentReport.id]))
+        .data,
+    ).toEqual([]);
+    expect((await listMyReports(resident.client)).reports.some((row) => row.id === report.id)).toBe(
+      false,
+    );
+    // Admin moderation access does not widen their personal history API.
+    expect((await admin.client.from('reports').select('id').eq('id', report.id)).data).toHaveLength(
+      1,
+    );
+    expect((await listMyReports(admin.client)).reports.some((row) => row.id === report.id)).toBe(
+      false,
+    );
+    const edit = await other.client
+      .from('reports')
+      .update({ status: 'dismissed' })
+      .eq('id', report.id)
+      .select('id');
+    expect(edit.error?.code).toBe('42501');
+    const deletion = await other.client.from('reports').delete().eq('id', report.id).select('id');
+    expect(deletion.data).toEqual([]);
+    await deletePost(resident.client, post.id);
+    expect((await submitReport(other.client, input)).id).toBe(report.id);
+    await reviewContentReport(
+      admin.client,
+      report.id,
+      'dismiss',
+      'Content was deleted by the author',
+    );
+    expect(
+      (await listMyReports(other.client)).reports.find((row) => row.id === report.id),
+    ).toMatchObject({ status: 'dismissed', resolution_note: 'Content was deleted by the author' });
+  });
+
+  it('rejects forged reporter/review metadata, blank reasons and nonexistent targets', async () => {
+    const post = await createPost(resident.client, {
+      body: 'Report permissions',
+      neighbourhoodId: 1,
+    });
+    const row = {
+      reporter_id: other.id,
+      target_type: 'post' as const,
+      target_id: post.id,
+      reason: 'Spam',
+    };
+    expect(
+      (await other.client.from('reports').insert({ ...row, reporter_id: resident.id })).error?.code,
+    ).toBe('42501');
+    for (const metadata of [
+      { created_at: hourAgo() },
+      { reviewed_by: admin.id },
+      { reviewed_at: hourAgo() },
+      { resolution_note: 'Forged review' },
+      { status: 'dismissed' as const },
+    ])
+      expect((await other.client.from('reports').insert({ ...row, ...metadata })).error?.code).toBe(
+        '42501',
+      );
+    expect(
+      (await other.client.from('reports').insert({ ...row, reason: ' \n\t ' })).error?.code,
+    ).toBe('23514');
+    for (const target_type of ['post', 'comment'] as const)
+      expect(
+        (
+          await other.client
+            .from('reports')
+            .insert({ ...row, target_type, target_id: randomUUID() })
+        ).error?.code,
+      ).toBe('42501');
+    await deletePost(resident.client, post.id);
+  });
+
+  it('denies reports on blocked or removed content and reports from suspended sessions', async () => {
+    const post = await createPost(resident.client, {
+      body: 'Visibility checks',
+      neighbourhoodId: 1,
+    });
+    const comment = await createComment(resident.client, {
+      postId: post.id,
+      body: 'Visible comment',
+    });
+    const postInput = { targetType: 'post' as const, targetId: post.id, reason: 'Spam' };
+    const commentInput = { targetType: 'comment' as const, targetId: comment.id, reason: 'Spam' };
+    await blockUser(other.client, resident.id);
+    try {
+      await expect(submitReport(other.client, postInput)).rejects.toMatchObject({ code: '42501' });
+      await expect(submitReport(other.client, commentInput)).rejects.toMatchObject({
+        code: '42501',
+      });
+    } finally {
+      await unblockUser(other.client, resident.id);
+    }
+    await setUserStatus(admin.client, other.id, 'suspended', 'Report test');
+    try {
+      await expect(submitReport(other.client, postInput)).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await setUserStatus(admin.client, other.id, 'active');
+    }
+    const removed = await service
+      .from('comments')
+      .update({ is_removed: true })
+      .eq('id', comment.id);
+    if (removed.error) throw removed.error;
+    await expect(submitReport(other.client, commentInput)).rejects.toMatchObject({ code: '42501' });
+    const removedParent = await service
+      .from('posts')
+      .update({ is_removed: true })
+      .eq('id', post.id);
+    if (removedParent.error) throw removedParent.error;
+    await expect(submitReport(resident.client, postInput)).rejects.toMatchObject({ code: '42501' });
+    await service.from('posts').delete().eq('id', post.id);
+  });
+
+  it('paginates personal history when report timestamps tie', async () => {
+    const created_at = new Date().toISOString();
+    const rows = await service
+      .from('reports')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          reporter_id: resident.id,
+          target_type: 'post' as const,
+          target_id: randomUUID(),
+          reason: `Pagination ${i}`,
+          created_at,
+        })),
+      )
+      .select('id');
+    if (rows.error) throw rows.error;
+    const all: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listMyReports>>['nextCursor'] = null;
+    for (let i = 0; i < 100; i++) {
+      const page = await listMyReports(resident.client, { limit: 2, cursor });
+      all.push(...page.reports.map((row) => row.id));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(cursor).toBeNull();
+    expect(all.filter((id) => rows.data.some((row) => row.id === id))).toEqual(
+      rows.data
+        .map((row) => row.id)
+        .sort()
+        .reverse(),
+    );
+    expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('P3 admin moderation', () => {
+  async function fixture() {
+    const post = await createPost(resident.client, {
+      body: 'Moderation target',
+      neighbourhoodId: 1,
+    });
+    const report = await submitReport(other.client, {
+      targetType: 'post',
+      targetId: post.id,
+      reason: 'Spam',
+    });
+    return { post, report };
+  }
+  async function auditFor(reportId: string) {
+    const result = await service
+      .from('audit_log')
+      .select('*')
+      .contains('details', { report_id: reportId });
+    if (result.error) throw result.error;
+    return result.data;
+  }
+
+  it('atomically removes posts, resolves reports and audits the actor once across concurrent retries', async () => {
+    const { post, report } = await fixture();
+    expect((await getModerationReport(admin.client, report.id))?.content?.body).toBe(post.body);
+    const decisions = await Promise.all([
+      reviewContentReport(admin.client, report.id, 'remove', 'Advertising violation'),
+      reviewContentReport(admin.client, report.id, 'remove', 'Advertising violation'),
+    ]);
+    expect(
+      decisions.every((row) => row.status === 'actioned' && row.reviewed_by === admin.id),
+    ).toBe(true);
+    const audit = await auditFor(report.id);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      actor_id: admin.id,
+      action: 'remove_content',
+      target_type: 'post',
+      target_id: post.id,
+      details: {
+        reason: 'Advertising violation',
+        from: 'open',
+        to: 'actioned',
+        content_changed: true,
+      },
+    });
+    expect(
+      (await listMyReports(other.client)).reports.find((row) => row.id === report.id)?.status,
+    ).toBe('actioned');
+    expect(await getPost(resident.client, post.id)).toBeNull();
+    expect((await getModerationReport(admin.client, report.id))?.content).toMatchObject({
+      body: post.body,
+      isRemoved: true,
+    });
+    await expect(
+      reviewContentReport(admin.client, report.id, 'dismiss', 'Different decision'),
+    ).rejects.toMatchObject({ code: '40001' });
+    expect(await auditFor(report.id)).toHaveLength(1);
+  });
+
+  it('removes a comment independently and keeps the first removal reason across reports', async () => {
+    const { post } = await fixture();
+    const comment = await createComment(other.client, {
+      postId: post.id,
+      body: 'Moderated comment',
+    });
+    const first = await submitReport(resident.client, {
+      targetType: 'comment',
+      targetId: comment.id,
+      reason: 'Abuse',
+    });
+    const second = await submitReport(resident.client, {
+      targetType: 'comment',
+      targetId: comment.id,
+      reason: 'Another report',
+    });
+    await reviewContentReport(admin.client, first.id, 'remove', 'Original removal reason');
+    await reviewContentReport(admin.client, second.id, 'remove', 'Related report resolved');
+    expect((await listComments(resident.client, post.id)).comments).toEqual([]);
+    expect(await getPost(resident.client, post.id)).not.toBeNull();
+    expect((await getModerationReport(admin.client, second.id))?.content).toMatchObject({
+      isRemoved: true,
+      removedReason: 'Original removal reason',
+    });
+    expect((await auditFor(second.id))[0]!.details).toMatchObject({ content_changed: false });
+  });
+
+  it('allows one winner when two admins make conflicting decisions', async () => {
+    const { post, report } = await fixture();
+    const secondAdmin = await userWithRole('moderator-race', 'admin');
+    const results = await Promise.allSettled([
+      reviewContentReport(admin.client, report.id, 'remove', 'Remove decision'),
+      reviewContentReport(secondAdmin.client, report.id, 'dismiss', 'Dismiss decision'),
+    ]);
+    expect(results.filter((row) => row.status === 'fulfilled')).toHaveLength(1);
+    const failed = results.find((row) => row.status === 'rejected');
+    expect(failed?.status === 'rejected' && failed.reason.code).toBe('40001');
+    expect(await auditFor(report.id)).toHaveLength(1);
+    const current = await getModerationReport(admin.client, report.id);
+    expect(current?.content?.isRemoved).toBe(current?.report.status === 'actioned');
+    expect(current?.content?.id).toBe(post.id);
+  });
+
+  it('rejects unauthorised RPCs, direct review updates, protected content and fake audit entries', async () => {
+    const { post, report } = await fixture();
+    const args = { p_report_id: report.id, p_action: 'remove', p_reason: 'Reason' };
+    expect((await resident.client.rpc('review_content_report', args)).error?.code).toBe('42501');
+    expect((await newClient().rpc('review_content_report', args)).error?.code).toBe('42501');
+    await expect(listModerationReports(resident.client)).rejects.toMatchObject({ code: '42501' });
+    await expect(listModerationAudit(resident.client)).rejects.toMatchObject({ code: '42501' });
+    expect(
+      (await admin.client.from('reports').update({ status: 'dismissed' }).eq('id', report.id)).error
+        ?.code,
+    ).toBe('42501');
+    expect(
+      (await admin.client.from('posts').update({ is_removed: true }).eq('id', post.id)).error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await admin.client
+          .from('audit_log')
+          .insert({ action: 'forged', target_type: 'post', target_id: post.id })
+      ).error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await admin.client.rpc('write_audit_log', {
+          p_action: 'forged',
+          p_target_type: 'post',
+          p_target_id: post.id,
+        })
+      ).error?.code,
+    ).toBe('42501');
+    const suspended = await userWithRole('moderator-suspended', 'admin');
+    await setUserStatus(admin.client, suspended.id, 'suspended', 'Moderation test');
+    expect((await suspended.client.rpc('review_content_report', args)).error?.code).toBe('42501');
+    expect(await auditFor(report.id)).toEqual([]);
+    expect((await getModerationReport(admin.client, report.id))?.report.status).toBe('open');
+  });
+
+  it('does not partially change state after invalid or missing-target decisions, and audits dismissal', async () => {
+    const { post, report } = await fixture();
+    for (const p_reason of [' \n\t ', 'x'.repeat(1001)])
+      expect(
+        (
+          await admin.client.rpc('review_content_report', {
+            p_report_id: report.id,
+            p_action: 'remove',
+            p_reason,
+          })
+        ).error?.code,
+      ).toBe('22023');
+    expect(
+      (
+        await admin.client.rpc('review_content_report', {
+          p_report_id: report.id,
+          p_action: 'restore',
+          p_reason: 'Reason',
+        })
+      ).error?.code,
+    ).toBe('22023');
+    await deletePost(resident.client, post.id);
+    await expect(
+      reviewContentReport(admin.client, report.id, 'remove', 'Missing target'),
+    ).rejects.toMatchObject({ code: 'P0002' });
+    expect((await getModerationReport(admin.client, report.id))?.report.status).toBe('open');
+    expect(await auditFor(report.id)).toEqual([]);
+    await reviewContentReport(admin.client, report.id, 'dismiss', 'Content was deleted');
+    const audit = await auditFor(report.id);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      action: 'dismiss_report',
+      target_type: 'report',
+      target_id: report.id,
+    });
+    expect(
+      (await listModerationAudit(admin.client)).entries.some((entry) => entry.id === audit[0]!.id),
+    ).toBe(true);
+    const page = await listModerationReports(admin.client, { status: 'dismissed', limit: 50 });
+    expect(page.reports.some((row) => row.id === report.id)).toBe(true);
+  });
+});
+
+describe('P3 connections', () => {
+  let pairNumber = 0;
+  async function pair() {
+    const index = ++pairNumber;
+    const [a, b] = await Promise.all([
+      userWithRole(`friend-${index}-a`, 'resident'),
+      userWithRole(`friend-${index}-b`, 'resident'),
+    ]);
+    return { a, b };
+  }
+
+  it('serializes crossed sends and accepts once into both users’ private friend lists', async () => {
+    const { a, b } = await pair();
+    const [first, second] = await Promise.all([
+      sendConnectionRequest(a.client, b.id),
+      sendConnectionRequest(b.client, a.id),
+    ]);
+    expect(second).toEqual(first);
+    expect(first.status).toBe('pending');
+    const receiver = first.addressee_id === a.id ? a : b;
+    const sender = first.requester_id === a.id ? a : b;
+    expect((await listConnections(receiver.client, { view: 'incoming' })).connections).toHaveLength(
+      1,
+    );
+    expect((await listConnections(sender.client, { view: 'outgoing' })).connections).toHaveLength(
+      1,
+    );
+    expect(
+      (
+        await resident.client
+          .from('connections')
+          .select('*')
+          .eq('requester_id', first.requester_id)
+          .eq('addressee_id', first.addressee_id)
+      ).data,
+    ).toEqual([]);
+    const accepted = await acceptConnectionRequest(receiver.client, connectionRequestRef(first));
+    expect(accepted.responded_at).toBeTruthy();
+    expect(
+      (await acceptConnectionRequest(receiver.client, connectionRequestRef(first))).responded_at,
+    ).toBe(accepted.responded_at);
+    for (const user of [a, b])
+      expect((await listConnections(user.client, { view: 'friends' })).connections).toHaveLength(1);
+    const directory = await findConnectionPeople(sender.client, { query: `friend-${pairNumber}-` });
+    expect(directory.people[0]?.connection?.status).toBe('accepted');
+    expect(directory.people[0] && Object.keys(directory.people[0].profile).sort()).toEqual([
+      'avatar_url',
+      'display_name',
+      'id',
+      'neighbourhood_id',
+    ]);
+  });
+
+  it('restricts pending actions by direction, blocks direct state forgery and rejects stale generations', async () => {
+    const { a, b } = await pair();
+    const row = await sendConnectionRequest(a.client, b.id);
+    const args = {
+      p_requester: a.id,
+      p_addressee: b.id,
+      p_created_at: row.created_at,
+      p_action: 'accept',
+    };
+    expect((await a.client.rpc('manage_connection_request', args)).error?.code).toBe('42501');
+    expect(
+      (await resident.client.rpc('manage_connection_request', { ...args, p_action: 'cancel' }))
+        .error?.code,
+    ).toBe('42501');
+    expect(
+      (await a.client.rpc('send_connection_request', { p_target_user: a.id })).error?.code,
+    ).toBe('22023');
+    expect(
+      (await newClient().rpc('send_connection_request', { p_target_user: a.id })).error?.code,
+    ).toBe('42501');
+    expect(
+      (
+        await a.client
+          .from('connections')
+          .insert({ requester_id: a.id, addressee_id: b.id, status: 'accepted' })
+      ).error?.code,
+    ).toBe('42501');
+    expect(
+      (await b.client.from('connections').update({ status: 'accepted' }).eq('requester_id', a.id))
+        .error?.code,
+    ).toBe('42501');
+    expect((await a.client.from('connections').delete().eq('requester_id', a.id)).error?.code).toBe(
+      '42501',
+    );
+    await rejectConnectionRequest(b.client, connectionRequestRef(row));
+    await rejectConnectionRequest(b.client, connectionRequestRef(row));
+    const fresh = await sendConnectionRequest(a.client, b.id);
+    expect(fresh.created_at).not.toBe(row.created_at);
+    await expect(
+      cancelConnectionRequest(a.client, connectionRequestRef(row)),
+    ).rejects.toMatchObject({ code: '40001' });
+    await cancelConnectionRequest(a.client, connectionRequestRef(fresh));
+    await cancelConnectionRequest(a.client, connectionRequestRef(fresh));
+    const latest = await sendConnectionRequest(a.client, b.id);
+    await acceptConnectionRequest(b.client, connectionRequestRef(latest));
+    await expect(
+      cancelConnectionRequest(a.client, connectionRequestRef(latest)),
+    ).rejects.toMatchObject({ code: '40001' });
+    await expect(
+      rejectConnectionRequest(b.client, connectionRequestRef(latest)),
+    ).rejects.toMatchObject({ code: '40001' });
+  });
+
+  it('removes connections when blocked and does not restore friendships after unblocking', async () => {
+    const { a, b } = await pair();
+    const row = await sendConnectionRequest(a.client, b.id);
+    await acceptConnectionRequest(b.client, connectionRequestRef(row));
+    await blockUser(b.client, a.id);
+    expect(
+      (
+        await service
+          .from('connections')
+          .select('*')
+          .eq('requester_id', a.id)
+          .eq('addressee_id', b.id)
+      ).data,
+    ).toEqual([]);
+    expect((await listConnections(a.client)).connections).toEqual([]);
+    expect(
+      (await findConnectionPeople(a.client, { query: `friend-${pairNumber}-` })).people,
+    ).toEqual([]);
+    await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+    await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: '42501' });
+    await unblockUser(b.client, a.id);
+    expect((await sendConnectionRequest(a.client, b.id)).status).toBe('pending');
+  });
+
+  it('serializes a block racing acceptance and rejects suspended senders/recipients', async () => {
+    const { a, b } = await pair();
+    const row = await sendConnectionRequest(a.client, b.id);
+    await Promise.allSettled([
+      acceptConnectionRequest(b.client, connectionRequestRef(row)),
+      blockUser(a.client, b.id),
+    ]);
+    expect(
+      (
+        await service
+          .from('connections')
+          .select('*')
+          .eq('requester_id', a.id)
+          .eq('addressee_id', b.id)
+      ).data,
+    ).toEqual([]);
+    await unblockUser(a.client, b.id);
+    await setUserStatus(admin.client, a.id, 'suspended', 'Connection test');
+    try {
+      await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+      await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: 'P0002' });
+    } finally {
+      await setUserStatus(admin.client, a.id, 'active');
+    }
+  });
+
+  it('paginates tied connection timestamps and literal directory searches without leaking third-party relationships', async () => {
+    const owner = await userWithRole('friend-page-owner', 'resident');
+    const peers = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => userWithRole(`friend-page-%_${i}`, 'resident')),
+    );
+    const created_at = new Date().toISOString();
+    const inserted = await service.from('connections').insert(
+      peers.map((peer, i) => ({
+        requester_id: i % 2 ? peer.id : owner.id,
+        addressee_id: i % 2 ? owner.id : peer.id,
+        created_at,
+      })),
+    );
+    if (inserted.error) throw inserted.error;
+    const seen: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listConnections>>['nextCursor'] = null;
+    for (let i = 0; i < 4; i++) {
+      const page = await listConnections(owner.client, { limit: 2, cursor });
+      seen.push(...page.connections.map((row) => `${row.requester_id}/${row.addressee_id}`));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(cursor).toBeNull();
+    expect(seen).toHaveLength(5);
+    expect(new Set(seen).size).toBe(5);
+    const first = await findConnectionPeople(owner.client, { query: 'friend-page-%_', limit: 2 });
+    const second = await findConnectionPeople(owner.client, {
+      query: 'friend-page-%_',
+      limit: 2,
+      cursor: first.nextCursor,
+    });
+    expect(first.people).toHaveLength(2);
+    expect(second.people).toHaveLength(2);
+    expect(new Set([...first.people, ...second.people].map((row) => row.profile.id)).size).toBe(4);
+    expect(
+      (await listConnections(resident.client)).connections.some(
+        (row) => row.requester_id === owner.id || row.addressee_id === owner.id,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('P3 DMs and blocking', () => {
+  let counter = 0;
+  async function pair(accept = true) {
+    const n = ++counter;
+    const [a, b] = await Promise.all([
+      userWithRole(`dm-${n}-a`, 'resident'),
+      userWithRole(`dm-${n}-b`, 'resident'),
+    ]);
+    const request = await sendConnectionRequest(a.client, b.id);
+    if (accept) await acceptConnectionRequest(b.client, connectionRequestRef(request));
+    return { a, b, request };
+  }
+
+  it('sends two-way messages only after acceptance, deduplicates concurrent retries and keeps reads private', async () => {
+    const { a, b, request } = await pair(false);
+    const input = { recipientId: b.id, body: 'Hello', requestId: randomUUID() };
+    await expect(sendDirectMessage(a.client, input)).rejects.toMatchObject({ code: '42501' });
+    await acceptConnectionRequest(b.client, connectionRequestRef(request));
+    const [one, retry] = await Promise.all([
+      sendDirectMessage(a.client, input),
+      sendDirectMessage(a.client, input),
+    ]);
+    expect(one.id).toBe(retry.id);
+    await sendDirectMessage(b.client, { recipientId: a.id, body: 'Reply' });
+    expect((await listDirectMessages(a.client, b.id)).messages.map((row) => row.body)).toEqual([
+      'Hello',
+      'Reply',
+    ]);
+    expect((await listDirectMessages(b.client, a.id)).messages).toHaveLength(2);
+    expect((await listDirectMessages(admin.client, a.id)).messages).toEqual([]);
+    expect((await admin.client.from('messages').select('id').eq('id', one.id)).data).toEqual([]);
+    expect(await getDirectConversation(a.client, b.id)).toMatchObject({
+      connected: true,
+      blockedByMe: false,
+      canSend: true,
+    });
+    await expect(
+      sendDirectMessage(a.client, { ...input, body: 'Changed retry' }),
+    ).rejects.toMatchObject({ code: '40001' });
+    expect((await service.from('messages').select('id').eq('id', one.id)).data).toHaveLength(1);
+  });
+
+  it('blocks atomically, hides retained messages, and requires reconnection after unblocking', async () => {
+    const { a, b } = await pair();
+    const sent = await sendDirectMessage(a.client, { recipientId: b.id, body: 'History' });
+    await blockUser(a.client, b.id);
+    await blockUser(a.client, b.id);
+    expect((await listConnections(a.client)).connections).toEqual([]);
+    expect((await listDirectMessages(a.client, b.id)).messages).toEqual([]);
+    expect((await b.client.from('messages').select('id').eq('id', sent.id)).data).toEqual([]);
+    expect((await service.from('messages').select('id').eq('id', sent.id)).data).toHaveLength(1);
+    expect((await listBlockedUsers(a.client)).users.map((row) => row.id)).toEqual([b.id]);
+    expect((await listBlockedUsers(b.client)).users).toEqual([]);
+    await expect(
+      sendDirectMessage(a.client, { recipientId: b.id, body: 'History', requestId: sent.id }),
+    ).rejects.toMatchObject({ code: '42501' });
+    await unblockUser(b.client, a.id); // Cannot remove a block owned by someone else.
+    expect((await listBlockedUsers(a.client)).users).toHaveLength(1);
+    await blockUser(b.client, a.id);
+    await unblockUser(a.client, b.id);
+    await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+    await unblockUser(b.client, a.id);
+    expect((await getDirectConversation(a.client, b.id))?.connected).toBe(false);
+    expect((await listDirectMessages(a.client, b.id)).messages).toEqual([]);
+    const fresh = await sendConnectionRequest(a.client, b.id);
+    await acceptConnectionRequest(b.client, connectionRequestRef(fresh));
+    expect((await listDirectMessages(a.client, b.id)).messages[0]?.body).toBe('History');
+  });
+
+  it('denies forged message/block writes, invalid messages and suspended sessions', async () => {
+    const { a, b } = await pair();
+    expect(
+      (
+        await a.client
+          .from('messages')
+          .insert({ sender_id: b.id, recipient_id: a.id, body: 'Forged', created_at: hourAgo() })
+      ).error?.code,
+    ).toBe('42501');
+    expect(
+      (await a.client.from('blocks').insert({ blocker_id: b.id, blocked_id: a.id })).error?.code,
+    ).toBe('42501');
+    expect((await a.client.from('blocks').delete().eq('blocked_id', b.id)).error?.code).toBe(
+      '42501',
+    );
+    expect(
+      (await newClient().rpc('set_user_block', { p_target_user: b.id, p_blocked: true })).error
+        ?.code,
+    ).toBe('42501');
+    expect(
+      (await a.client.rpc('set_user_block', { p_target_user: a.id, p_blocked: true })).error?.code,
+    ).toBe('22023');
+    for (const p_body of [' \n\t ', 'x'.repeat(2001)])
+      expect(
+        (await a.client.rpc('send_direct_message', { p_recipient: b.id, p_body })).error?.code,
+      ).toBe('22023');
+    await setUserStatus(admin.client, a.id, 'suspended', 'DM test');
+    try {
+      await expect(
+        sendDirectMessage(a.client, { recipientId: b.id, body: 'Denied' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        sendDirectMessage(b.client, { recipientId: a.id, body: 'Denied' }),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(blockUser(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+      await expect(unblockUser(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
+    } finally {
+      await setUserStatus(admin.client, a.id, 'active');
+    }
+  });
+
+  it('serializes sending against blocking so no messages remain readable after the block', async () => {
+    const { a, b } = await pair();
+    const outcomes = await Promise.allSettled([
+      sendDirectMessage(a.client, { recipientId: b.id, body: 'Racing message' }),
+      blockUser(b.client, a.id),
+    ]);
+    expect(outcomes[1]?.status).toBe('fulfilled');
+    expect((await listConnections(a.client)).connections).toEqual([]);
+    expect((await listDirectMessages(a.client, b.id)).messages).toEqual([]);
+    await expect(
+      sendDirectMessage(a.client, { recipientId: b.id, body: 'After blocking' }),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('paginates tied message timestamps and personal block history without duplicates', async () => {
+    const { a, b } = await pair();
+    const created_at = new Date().toISOString();
+    const inserted = await service
+      .from('messages')
+      .insert(
+        Array.from({ length: 5 }, (_, i) => ({
+          sender_id: i % 2 ? b.id : a.id,
+          recipient_id: i % 2 ? a.id : b.id,
+          body: `Page ${i}`,
+          created_at,
+        })),
+      )
+      .select('id');
+    if (inserted.error) throw inserted.error;
+    const ids: string[] = [];
+    let cursor: Awaited<ReturnType<typeof listDirectMessages>>['nextCursor'] = null;
+    for (let i = 0; i < 4; i++) {
+      const page = await listDirectMessages(a.client, b.id, { limit: 2, cursor });
+      ids.unshift(...page.messages.map((row) => row.id));
+      cursor = page.nextCursor;
+      if (!cursor) break;
+    }
+    expect(ids).toEqual(inserted.data.map((row) => row.id).sort());
+    const targets = await Promise.all(
+      Array.from({ length: 3 }, (_, i) => userWithRole(`dm-block-page-${i}`, 'resident')),
+    );
+    for (const target of targets) await blockUser(a.client, target.id);
+    const tie = await service.from('blocks').update({ created_at }).eq('blocker_id', a.id);
+    if (tie.error) throw tie.error;
+    const first = await listBlockedUsers(a.client, { limit: 2 });
+    const second = await listBlockedUsers(a.client, { limit: 2, cursor: first.nextCursor });
+    expect([...first.users, ...second.users].map((row) => row.id)).toEqual(
+      targets
+        .map((target) => target.id)
+        .sort()
+        .reverse(),
+    );
+    expect(second.nextCursor).toBeNull();
+    expect((await listBlockedUsers(b.client)).users).toEqual([]);
   });
 });

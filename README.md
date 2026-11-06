@@ -5,8 +5,11 @@ SC2006 group project. A community app for Singapore residents to discover local 
 **Stack:** Expo (React Native) + TypeScript, Supabase (Postgres, Auth, row-level security).
 
 ```
-apps/mobile/         Expo app
+summer-ui-ux/        The CommunityLink app (all screens; see its README to run it)
+apps/mobile/         P1's Expo dev harness
 packages/shared/     Shared TypeScript: DB types, API functions, validation, RBAC
+services/mockpass/   Local Mockpass server
+services/mockpass-auth/ CommunityLink Mockpass authentication bridge
 supabase/migrations/ Database schema + RLS policies (source of truth for the DB)
 scripts/seed.mjs     Test accounts, activities, posts
 docs/                API contract and team conventions
@@ -35,6 +38,40 @@ docs/                API contract and team conventions
    | admin     | `admin@test.com`                                                |
    | organiser | `organiser@test.com`, `organiser2@test.com`                     |
    | resident  | `resident@test.com`, `resident2@test.com`, `resident3@test.com` |
+
+## Try posts in the browser without Supabase
+
+From the repository root:
+
+```bash
+npm run web:demo
+```
+
+Select **Continue as Yining**, then **Open community feed**. You can create, edit
+and delete posts, switch neighbourhoods and load older posts. Open any post to
+like/unlike it, add comments, and edit or delete your own comments. Switch to
+**Auntie Mei** to check author controls and likes from separate residents.
+No Supabase project or `.env` is needed. The visible demo banner identifies local
+data; posts, comments and likes persist in that browser.
+Use **Report post** / **Report comment** to submit a reason, then **My reports**
+to view your own submissions and status. Reports also persist in that browser.
+Choose **Continue as Demo Admin**, then **Admin moderation** to review reports,
+remove content or dismiss reports, and view the moderation audit log.
+Open **Connections** to find people, send friend requests, manage incoming/sent
+requests, and view friends. Switch between Yining and Auntie Mei to try both sides.
+Open **Messages** or choose **Message** beside a friend to chat. **Block user**
+removes the connection; **Blocked users** lets you unblock. Reconnect before
+messaging again after unblocking.
+**Reset demo data** on the resident-selection screen restores the sample posts.
+
+This uses the same post screens with a local data service. Real database/RLS
+verification still needs Supabase. Normal `npm run mobile` / `npm run web
+--workspace apps/mobile` use Supabase unless demo mode is explicitly enabled.
+See [P3 posts and feed](docs/p3-posts-feed.md) for details.
+See [P3 reports](docs/p3-reports.md) for reporting APIs, screens and database protections.
+See [P3 admin moderation](docs/p3-moderation.md) for the review and audit workflow.
+See [P3 connections](docs/p3-connections.md) for friend requests and database rules.
+See [P3 DMs and blocking](docs/p3-messaging-blocking.md) for private messages and block controls.
 
 ## Using the shared package
 
@@ -80,6 +117,7 @@ Optional local sandbox (needs Docker): `supabase start`, then `supabase db reset
 | `npm test`          | Unit tests                                                 |
 | `npm run test:db`   | Auth/RBAC/RLS integration tests (local Supabase only)      |
 | `npm run seed`      | Seed test data into the project in `.env` (safe to re-run) |
+| `npm run mockpass`  | Start the local Mockpass authentication bridge             |
 | `npm run db:types`  | Regenerate `database.types.ts` from the linked project     |
 | `npm run format`    | Prettier                                                   |
 
@@ -89,3 +127,32 @@ Optional local sandbox (needs Docker): `supabase start`, then `supabase db reset
 - Small PRs, merged to `main` every 2–3 days. Don't save everything for Week 10.
 - CI must pass, and one teammate must approve.
 - Never commit `.env` files, the database password, or the **secret** key.
+
+## Mockpass login (local development)
+
+Mockpass runs separately from the Expo app. Start it with the login page and
+direct ID tokens enabled:
+
+```powershell
+cd services/mockpass
+$env:SHOW_LOGIN_PAGE = "true"
+$env:SINGPASS_CLIENT_PROFILE = "direct"
+npm start
+```
+
+In another terminal, start the CommunityLink bridge:
+
+```powershell
+npm run mockpass
+```
+
+The bridge reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` from the root `.env`.
+Set `MOCKPASS_AUTH_URL` there and
+`EXPO_PUBLIC_MOCKPASS_AUTH_URL` in `apps/mobile/.env` to the computer's
+LAN IPv4 address when testing with Expo Go on a phone. The phone and computer
+must be on the same network.
+
+The mobile login screen then provides **Log in with Mockpass**. The bridge
+handles the Mockpass token exchange and creates or reuses a local Supabase
+account whose profile is marked as Singpass-verified. Never expose the
+Supabase secret key or Mockpass signing keys to the mobile app.
