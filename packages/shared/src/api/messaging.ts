@@ -9,6 +9,7 @@ export interface SendDirectMessageInput {
   body: string;
   requestId?: string;
   activityId?: string;
+  imageUrl?: string;
 }
 export interface MessageCursor {
   createdAt: string;
@@ -73,8 +74,10 @@ export async function sendDirectMessage(
   client: CommunityLinkClient,
   input: SendDirectMessageInput,
 ): Promise<Message> {
-  const invalid = validateDirectMessageBody(input.body);
+  const invalid = input.imageUrl ? null : validateDirectMessageBody(input.body);
   if (invalid) throw new ApiError(invalid, 'validation');
+  if (input.imageUrl && !input.imageUrl.includes('/storage/v1/object/public/chat-images/'))
+    throw new ApiError('Chat images must be uploaded first.', 'validation');
   if (input.requestId !== undefined) validId(input.requestId);
   if (input.activityId !== undefined) validId(input.activityId);
   await otherUser(client, input.recipientId);
@@ -85,6 +88,7 @@ export async function sendDirectMessage(
         p_body: input.body.trim(),
         ...(input.requestId ? { p_request_id: input.requestId } : {}),
         ...(input.activityId ? { p_activity_id: input.activityId } : {}),
+        ...(input.imageUrl ? { p_image_url: input.imageUrl } : {}),
       })
       .single(),
   );

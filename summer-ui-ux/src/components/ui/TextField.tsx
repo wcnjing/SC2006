@@ -14,12 +14,13 @@ export type TextFieldProps = TextInputProps & {
   error?: string | null;
   optional?: boolean;
   leftIcon?: IconName;
+  compact?: boolean;
   /** Renders a show/hide toggle and masks input. */
   password?: boolean;
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, hint, error, optional, leftIcon, password, style, multiline, ...rest },
+  { label, hint, error, optional, leftIcon, password, compact, style, multiline, ...rest },
   ref,
 ) {
   const { t, textScale } = useSettings();
@@ -29,16 +30,18 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
   return (
     <View style={styles.wrap}>
-      <AppText variant="label" nativeID={`${label}-label`}>
-        {label}
-        {optional && (
-          <AppText variant="caption" color={colors.textSubtle}>
-            {'  '}
-            {t('common.optional')}
-          </AppText>
-        )}
-      </AppText>
-      {hint && (
+      {!compact && (
+        <AppText variant="label" nativeID={`${label}-label`}>
+          {label}
+          {optional && (
+            <AppText variant="caption" color={colors.textSubtle}>
+              {'  '}
+              {t('common.optional')}
+            </AppText>
+          )}
+        </AppText>
+      )}
+      {!compact && hint && (
         <AppText variant="caption" color={colors.textMuted}>
           {hint}
         </AppText>
@@ -47,6 +50,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         style={[
           styles.box,
           multiline && styles.multiline,
+          compact && styles.compactBox,
           { borderColor, borderWidth: focused || error ? 2 : 1.5 },
         ]}
       >
@@ -73,6 +77,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
             styles.input,
             typography('body', textScale),
             multiline && styles.inputMultiline,
+            compact && styles.compactInput,
             style,
           ]}
           {...rest}
@@ -117,6 +122,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   multiline: { alignItems: 'flex-start', paddingVertical: spacing.md },
+  compactBox: { paddingVertical: 0 },
   input: {
     flex: 1,
     color: colors.text,
@@ -124,6 +130,7 @@ const styles = StyleSheet.create({
     outlineStyle: 'none',
   } as object,
   inputMultiline: { minHeight: 96, textAlignVertical: 'top' },
+  compactInput: { minHeight: 40, paddingVertical: spacing.sm, textAlignVertical: 'center' },
   eye: {
     width: 40,
     height: 40,

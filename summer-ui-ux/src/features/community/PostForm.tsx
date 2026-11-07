@@ -3,12 +3,15 @@ import {
   validatePostBody,
   validatePostImageUrl,
 } from '@communitylink/shared';
+import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { Banner, Button, Screen, ScreenHeader, TextField } from '@/components/ui';
+import { useAuth } from '@/context/AuthContext';
 import { useT } from '@/context/SettingsContext';
 import { errorText } from '@/services';
+import { uploadImage } from '@/services/supabase/uploads';
 import { spacing } from '@/theme/tokens';
 
 type Props = {
@@ -21,11 +24,31 @@ type Props = {
 /** Create post / Edit post form (FR 7.2, UC CreatePost / EditPost). Validation is P3's shared rules. */
 export function PostForm({ title, submitLabel, initial, onSubmit }: Props) {
   const t = useT();
+  const userId = useAuth().session?.account.accountId;
   const [body, setBody] = useState(initial?.body ?? '');
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
   const [errors, setErrors] = useState<{ body?: string | null; image?: string | null }>({});
   const [failed, setFailed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const chooseImage = async () => {
+    if (!userId) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploading(true);
+    try {
+      setImageUrl(await uploadImage('community-images', userId, result.assets[0].uri));
+    } catch (e) {
+      setFailed(errorText(t, e));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const submit = async () => {
     const next = { body: validatePostBody(body), image: validatePostImageUrl(imageUrl) };
@@ -60,6 +83,13 @@ export function PostForm({ title, submitLabel, initial, onSubmit }: Props) {
         error={errors.body}
         multiline
         autoFocus={!initial}
+      />
+      <Button
+        label={imageUrl ? 'Replace image' : 'Add image'}
+        icon="image-outline"
+        variant="outline"
+        loading={uploading}
+        onPress={chooseImage}
       />
       <TextField
         label={t('post.imageLabel')}

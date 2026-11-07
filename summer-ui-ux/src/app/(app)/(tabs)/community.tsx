@@ -7,7 +7,6 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  IconButton,
   LoadingState,
   Screen,
 } from '@/components/ui';
@@ -53,16 +52,6 @@ export default function CommunityScreen() {
             </AppText>
           )}
         </View>
-        <IconButton
-          icon="people-outline"
-          label={t('community.friends')}
-          onPress={() => router.push('/friend-requests')}
-        />
-        <IconButton
-          icon="chatbubble-ellipses-outline"
-          label={t('community.messages')}
-          onPress={() => router.push('/messages')}
-        />
       </View>
 
       <Button

@@ -1,7 +1,16 @@
 import { validateDirectMessageBody } from '@communitylink/shared';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputContentSizeChangeEventData,
+} from 'react-native';
 
 import {
   AppText,
@@ -25,6 +34,7 @@ import {
   markConversationRead,
   subscribeToConversation,
 } from '@/services/notifications';
+import { uploadImage } from '@/services/supabase/uploads';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 /**
@@ -39,6 +49,9 @@ export default function ConversationScreen() {
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(40);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollToLatest = () => scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -97,21 +110,42 @@ export default function ConversationScreen() {
   const { conversation, messages } = page.data;
   const send = async () => {
     const invalid = validateDirectMessageBody(body);
-    setError(invalid);
-    if (invalid) return;
+    setError(imageUrl ? null : invalid);
+    if (invalid && !imageUrl) return;
     setSending(true);
     try {
       await communityService.sendDirectMessage({
         recipientId: id,
         body,
         activityId,
+        imageUrl: imageUrl ?? undefined,
       });
       setBody('');
+      setImageUrl(null);
       await page.revalidate();
     } catch (e) {
       setError(errorText(t, e));
     } finally {
       setSending(false);
+    }
+  };
+
+  const chooseImage = async () => {
+    if (!me) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploading(true);
+    setError(null);
+    try {
+      setImageUrl(await uploadImage('chat-images', me, result.assets[0].uri));
+    } catch (e) {
+      setError(errorText(t, e));
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -125,25 +159,57 @@ export default function ConversationScreen() {
       onContentSizeChange={scrollToLatest}
       footer={
         conversation.canSend && (
-          <View style={styles.composer}>
-            <View style={styles.flex}>
-              <TextField
-                label={t('messages.write')}
-                value={body}
-                onChangeText={setBody}
-                error={error}
-                multiline
-                submitBehavior="submit"
-                onSubmitEditing={() => void send()}
+          <View style={styles.composerWrap}>
+            {imageUrl && (
+              <View style={styles.preview}>
+                <Image source={{ uri: imageUrl }} style={styles.previewImage} />
+                <IconButton
+                  icon="close-circle"
+                  label="Remove attached image"
+                  color={colors.error}
+                  onPress={() => setImageUrl(null)}
+                />
+              </View>
+            )}
+            <View style={styles.composer}>
+              <IconButton
+                icon="image-outline"
+                label="Attach image"
+                disabled={uploading}
+                onPress={chooseImage}
+              />
+              <View style={styles.flex}>
+                <TextField
+                  label={t('messages.write')}
+                  value={body}
+                  onChangeText={setBody}
+                  error={error}
+                  compact
+                  multiline
+                  style={{ height: composerHeight }}
+                  onContentSizeChange={(
+                    event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>,
+                  ) => {
+                    const height = Math.min(
+                      120,
+                      Math.max(40, event.nativeEvent.contentSize.height),
+                    );
+                    setComposerHeight(height);
+                  }}
+                  submitBehavior="submit"
+                  onSubmitEditing={() => void send()}
+                />
+              </View>
+              <Button
+                label={t('post.send')}
+                icon="send"
+                fullWidth={false}
+                loading={sending}
+                disabled={uploading}
+                style={styles.sendButton}
+                onPress={send}
               />
             </View>
-            <Button
-              label={t('post.send')}
-              icon="send"
-              fullWidth={false}
-              loading={sending}
-              onPress={send}
-            />
           </View>
         )
       }
@@ -174,7 +240,10 @@ export default function ConversationScreen() {
                 })}
                 style={[styles.bubble, mine ? styles.mine : styles.theirs]}
               >
-                <AppText color={mine ? colors.onPrimary : colors.text}>{m.body}</AppText>
+                {m.body && (
+                  <AppText color={mine ? colors.onPrimary : colors.text}>{m.body}</AppText>
+                )}
+                {m.image_url && <Image source={{ uri: m.image_url }} style={styles.messageImage} />}
                 <AppText variant="caption" color={mine ? colors.onPrimary : colors.textMuted}>
                   {formatAgo(t, m.created_at)}
                 </AppText>
@@ -197,8 +266,13 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.md, paddingTop: spacing.sm },
   flex: { flex: 1 },
+  composerWrap: { gap: spacing.sm },
+  preview: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  previewImage: { width: 96, height: 72, borderRadius: radii.sm },
   list: { flexGrow: 1, justifyContent: 'flex-end', gap: spacing.sm, paddingBottom: spacing.sm },
   bubble: { maxWidth: '80%', padding: spacing.md, borderRadius: radii.lg, gap: spacing.xxs },
+  messageImage: { width: 220, height: 160, borderRadius: radii.md },
+  sendButton: { alignSelf: 'flex-end' },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.primary },
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.surfaceMuted },
   timestampTooltip: {

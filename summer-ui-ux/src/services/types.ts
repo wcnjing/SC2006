@@ -89,9 +89,7 @@ export const errorMessageKey = (e: unknown): TranslationKey => {
  * show it as is; everything else goes through errorMessageKey.
  */
 export const errorText = (t: (key: TranslationKey) => string, e: unknown): string =>
-  e instanceof ApiError && (e.code === 'validation' || e.code === 'conflict')
-    ? e.message
-    : t(errorMessageKey(e));
+  e instanceof ApiError ? e.message : t(errorMessageKey(e));
 
 export interface AuthService {
   /** FR 1.1: create a resident account. Throws EMAIL_TAKEN. Returns a session with profile = null. */

@@ -299,16 +299,18 @@ export type Database = {
       comments: {
         Row: {
           author_id: string;
-          body: string;
+          body: string | null;
           created_at: string;
           id: string;
+          image_url: string | null;
           is_removed: boolean;
           post_id: string;
           removed_reason: string | null;
         };
         Insert: {
           author_id: string;
-          body: string;
+          body: string | null;
+          image_url?: string | null;
           created_at?: string;
           id?: string;
           is_removed?: boolean;
@@ -318,6 +320,7 @@ export type Database = {
         Update: {
           author_id?: string;
           body?: string;
+          image_url?: string | null;
           created_at?: string;
           id?: string;
           is_removed?: boolean;
@@ -385,6 +388,7 @@ export type Database = {
           body: string | null;
           created_at: string;
           activity_id: string | null;
+          image_url: string | null;
           id: string;
           read_at: string | null;
           recipient_id: string;
@@ -394,6 +398,7 @@ export type Database = {
         Insert: {
           activity_id?: string | null;
           body?: string | null;
+          image_url?: string | null;
           created_at?: string;
           id?: string;
           read_at?: string | null;
@@ -404,6 +409,7 @@ export type Database = {
         Update: {
           activity_id?: string | null;
           body?: string | null;
+          image_url?: string | null;
           created_at?: string;
           id?: string;
           read_at?: string | null;
@@ -733,6 +739,7 @@ export type Database = {
           p_body: string;
           p_request_id?: string;
           p_activity_id?: string;
+          p_image_url?: string;
         };
         Returns: Database['public']['Tables']['messages']['Row'][];
       };

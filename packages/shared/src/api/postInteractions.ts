@@ -17,6 +17,7 @@ export interface CommentListOptions {
 export interface CreateCommentInput {
   postId: string;
   body: string;
+  imageUrl?: string | null;
   requestId?: string;
 }
 export interface PostLikeState {
@@ -94,7 +95,7 @@ export async function createComment(
 ): Promise<CommunityComment> {
   validId(input.postId);
   if (input.requestId !== undefined) validId(input.requestId);
-  const body = commentBody(input.body);
+  const body = input.imageUrl ? input.body.trim() : commentBody(input.body);
   const authorId = await requireUserId(client);
   const result = await client
     .from('comments')
@@ -103,6 +104,7 @@ export async function createComment(
       post_id: input.postId,
       author_id: authorId,
       body,
+      image_url: input.imageUrl ?? null,
     })
     .select(COMMENT_SELECT)
     .single();

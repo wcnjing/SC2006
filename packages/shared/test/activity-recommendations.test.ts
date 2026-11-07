@@ -171,7 +171,7 @@ beforeEach(() => {
   } as unknown as Profile);
   vi.mocked(listActivities).mockResolvedValue([activity('a')]);
   vi.mocked(listNeighbourhoods).mockResolvedValue([
-    { id: 1, name: 'Central', lat: 1.3, lng: 103.8 },
+    { id: 1, name: 'Central', lat: 1.3, lng: 103.8, onemap_id: null },
   ]);
 });
 describe('read-only recommendation API', () => {

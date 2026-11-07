@@ -155,7 +155,7 @@ export async function getModerationReport(
         type: 'comment',
         authorId: comment.author_id,
         author: comment.author,
-        body: comment.body,
+        body: comment.body ?? '',
         imageUrl: null,
         createdAt: comment.created_at,
         isRemoved: comment.is_removed,

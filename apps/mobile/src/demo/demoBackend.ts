@@ -70,10 +70,10 @@ type DemoState = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const neighbourhoods: Neighbourhood[] = [
-  { id: 1, name: 'Bishan', lat: 1.35, lng: 103.85 },
-  { id: 2, name: 'Tampines', lat: 1.35, lng: 103.94 },
-  { id: 3, name: 'Punggol', lat: 1.4, lng: 103.9 },
-  { id: 4, name: 'Bedok', lat: 1.32, lng: 103.93 },
+  { id: 1, name: 'Bishan', lat: 1.35, lng: 103.85, onemap_id: null },
+  { id: 2, name: 'Tampines', lat: 1.35, lng: 103.94, onemap_id: null },
+  { id: 3, name: 'Punggol', lat: 1.4, lng: 103.9, onemap_id: null },
+  { id: 4, name: 'Bedok', lat: 1.32, lng: 103.93, onemap_id: null },
 ];
 
 function profile(id: string, displayName: string): Profile {
@@ -342,7 +342,7 @@ export function createDemoBackend(storage: DemoStorage) {
             type: 'comment',
             authorId: comment.author_id,
             author: hydrateComment(comment).author,
-            body: comment.body,
+            body: comment.body ?? '',
             imageUrl: null,
             createdAt: comment.created_at,
             isRemoved: comment.is_removed,
@@ -587,7 +587,7 @@ export function createDemoBackend(storage: DemoStorage) {
       const state = read();
       const author = requireProfile(state);
       visiblePost(state, input.postId);
-      const body = commentBody(input.body);
+      const body = input.imageUrl ? input.body.trim() : commentBody(input.body);
       const id = input.requestId ?? (await import('expo-crypto')).randomUUID();
       if (!UUID.test(id)) throw new ApiError('Invalid draft ID.', 'validation');
       const existing = state.comments.find((comment) => comment.id === id);
@@ -596,6 +596,7 @@ export function createDemoBackend(storage: DemoStorage) {
         if (existing.post_id !== input.postId)
           throw new ApiError('This comment belongs to another post.', 'conflict');
         existing.body = body;
+        existing.image_url = input.imageUrl ?? null;
         write(state);
         return hydrateComment(existing);
       }
@@ -604,6 +605,7 @@ export function createDemoBackend(storage: DemoStorage) {
         post_id: input.postId,
         author_id: author.id,
         body,
+        image_url: input.imageUrl ?? null,
         is_removed: false,
         removed_reason: null,
         created_at: new Date().toISOString(),
@@ -1025,7 +1027,7 @@ export function createDemoBackend(storage: DemoStorage) {
       };
     },
     async sendDirectMessage(input: SendDirectMessageInput): Promise<Message> {
-      const invalid = validateDirectMessageBody(input.body);
+      const invalid = input.imageUrl ? null : validateDirectMessageBody(input.body);
       if (invalid) throw new ApiError(invalid, 'validation');
       const id = input.requestId ?? (await import('expo-crypto')).randomUUID();
       if (!UUID.test(id) || !UUID.test(input.recipientId))
@@ -1049,7 +1051,8 @@ export function createDemoBackend(storage: DemoStorage) {
           existing.sender_id !== sender.id ||
           existing.recipient_id !== input.recipientId ||
           existing.body !== input.body.trim() ||
-          existing.shared_post_id !== null
+          existing.shared_post_id !== null ||
+          existing.image_url !== (input.imageUrl ?? null)
         )
           throw new ApiError(
             'This message ID was already used. Refresh the conversation before starting a new message.',
@@ -1062,6 +1065,8 @@ export function createDemoBackend(storage: DemoStorage) {
         sender_id: sender.id,
         recipient_id: input.recipientId,
         body: input.body.trim(),
+        image_url: input.imageUrl ?? null,
+        activity_id: input.activityId ?? null,
         created_at: timestamp(state),
         shared_post_id: null,
         read_at: null,

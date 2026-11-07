@@ -44,7 +44,7 @@ function CommentRow({
 }) {
   const { profile } = useAuth();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(comment.body);
+  const [draft, setDraft] = useState(comment.body ?? '');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +113,7 @@ function CommentRow({
             label={text.editComment}
             disabled={saving || disabled}
             onPress={() => {
-              setDraft(comment.body);
+              setDraft(comment.body ?? '');
               setEditing(true);
               setConfirmDelete(false);
               setError(null);

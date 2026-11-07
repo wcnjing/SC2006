@@ -1,7 +1,17 @@
 import { validateCommentBody } from '@communitylink/shared';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Image, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type NativeSyntheticEvent,
+  type TextInputContentSizeChangeEventData,
+} from 'react-native';
 
 import {
   AppText,
@@ -24,6 +34,7 @@ import { AuthorLine } from '@/features/community/PostCard';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey, errorText } from '@/services';
 import { markCommunityPostNotificationsRead } from '@/services/notifications';
+import { uploadImage } from '@/services/supabase/uploads';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 /**
@@ -43,8 +54,12 @@ export default function PostScreen() {
 
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [commentImage, setCommentImage] = useState<string | null>(null);
+  const [uploadingCommentImage, setUploadingCommentImage] = useState(false);
+  const [commentComposerHeight, setCommentComposerHeight] = useState(40);
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState<'like' | 'comment' | 'delete' | null>(null);
+  const commentsRef = useRef<ScrollView>(null);
   const [confirmDelete, setConfirmDelete] = useState<{
     kind: 'post' | 'comment';
     id: string;
@@ -59,6 +74,10 @@ export default function PostScreen() {
     ]);
     return { post, likes, comments: comments.comments };
   });
+
+  useEffect(() => {
+    if (page.data?.comments.length) requestAnimationFrame(() => commentsRef.current?.scrollToEnd());
+  }, [page.data?.comments.length]);
 
   const run = async (
     kind: NonNullable<typeof busy>,
@@ -138,17 +157,41 @@ export default function PostScreen() {
     userId !== me && router.push({ pathname: '/user/[id]', params: { id: userId } });
 
   const send = () => {
-    const error = validateCommentBody(comment);
+    const error = commentImage ? null : validateCommentBody(comment);
     setCommentError(error);
     if (error) return;
     run(
       'comment',
       async () => {
-        await communityService.createComment({ postId: id, body: comment });
+        await communityService.createComment({
+          postId: id,
+          body: comment,
+          imageUrl: commentImage,
+        });
         setComment('');
+        setCommentImage(null);
       },
       t('post.commented'),
     );
+  };
+
+  const chooseCommentImage = async () => {
+    if (!me) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploadingCommentImage(true);
+    setCommentError(null);
+    try {
+      setCommentImage(await uploadImage('community-images', me, result.assets[0].uri));
+    } catch (e) {
+      setStatus({ tone: 'error', text: errorText(t, e) });
+    } finally {
+      setUploadingCommentImage(false);
+    }
   };
 
   const remove = () => {
@@ -170,115 +213,157 @@ export default function PostScreen() {
     <Screen
       header={header}
       contentStyle={styles.content}
+      scroll={false}
       refreshing={page.refreshing}
       onRefresh={page.refresh}
       footer={
-        <View style={styles.composer}>
-          <View style={styles.flex}>
-            <TextField
-              label={t('post.addComment')}
-              value={comment}
-              onChangeText={setComment}
-              error={commentError}
-              multiline
+        <View style={styles.composerWrap}>
+          {commentImage && (
+            <View style={styles.preview}>
+              <Image source={{ uri: commentImage }} style={styles.previewImage} />
+              <IconButton
+                icon="close-circle"
+                label="Remove attached image"
+                color={colors.error}
+                onPress={() => setCommentImage(null)}
+              />
+            </View>
+          )}
+          <View style={styles.composer}>
+            <IconButton
+              icon="image-outline"
+              label="Attach image"
+              disabled={uploadingCommentImage}
+              onPress={chooseCommentImage}
+            />
+            <View style={styles.flex}>
+              <TextField
+                label={t('post.addComment')}
+                value={comment}
+                onChangeText={setComment}
+                error={commentError}
+                compact
+                multiline
+                style={{ height: commentComposerHeight }}
+                onContentSizeChange={(
+                  event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>,
+                ) => {
+                  const height = Math.min(120, Math.max(40, event.nativeEvent.contentSize.height));
+                  setCommentComposerHeight(height);
+                }}
+              />
+            </View>
+            <Button
+              label={t('post.send')}
+              icon="send"
+              fullWidth={false}
+              loading={busy === 'comment'}
+              disabled={!!busy || uploadingCommentImage}
+              style={styles.sendButton}
+              onPress={send}
             />
           </View>
-          <Button
-            label={t('post.send')}
-            icon="send"
-            fullWidth={false}
-            loading={busy === 'comment'}
-            disabled={!!busy}
-            onPress={send}
-          />
         </View>
       }
     >
-      <Pressable
-        accessibilityRole={mine ? undefined : 'button'}
-        accessibilityLabel={mine ? undefined : t('post.openAuthor', { name: authorName })}
-        disabled={mine}
-        onPress={() => openUser(post.author_id)}
-      >
-        <AuthorLine
-          name={authorName}
-          uri={post.author?.avatar_url}
-          when={formatAgo(t, post.created_at)}
-          size={48}
-        />
-      </Pressable>
-      <AppText>{post.body}</AppText>
-      {post.image_url && <Image source={{ uri: post.image_url }} style={styles.image} />}
+      <View style={styles.postContent}>
+        <Pressable
+          accessibilityRole={mine ? undefined : 'button'}
+          accessibilityLabel={mine ? undefined : t('post.openAuthor', { name: authorName })}
+          disabled={mine}
+          onPress={() => openUser(post.author_id)}
+        >
+          <AuthorLine
+            name={authorName}
+            uri={post.author?.avatar_url}
+            when={formatAgo(t, post.created_at)}
+            size={48}
+          />
+        </Pressable>
+        <AppText>{post.body}</AppText>
+        {post.image_url && <Image source={{ uri: post.image_url }} style={styles.image} />}
 
-      <View style={styles.likeRow}>
-        <Button
-          label={t('post.likes', { count: likes.likeCount })}
-          accessibilityLabel={t(likes.likedByMe ? 'post.unlikeA11y' : 'post.likeA11y', {
-            count: likes.likeCount,
-          })}
-          icon={likes.likedByMe ? 'heart' : 'heart-outline'}
-          variant={likes.likedByMe ? 'primary' : 'outline'}
-          size="sm"
-          fullWidth={false}
-          loading={busy === 'like'}
-          disabled={!!busy}
-          onPress={() =>
-            run('like', async () => {
-              await communityService.setPostLiked(id, !likes.likedByMe);
-            })
-          }
-        />
+        <View style={styles.likeRow}>
+          <Button
+            label={t('post.likes', { count: likes.likeCount })}
+            accessibilityLabel={t(likes.likedByMe ? 'post.unlikeA11y' : 'post.likeA11y', {
+              count: likes.likeCount,
+            })}
+            icon={likes.likedByMe ? 'heart' : 'heart-outline'}
+            variant={likes.likedByMe ? 'primary' : 'outline'}
+            size="sm"
+            fullWidth={false}
+            loading={busy === 'like'}
+            disabled={!!busy}
+            onPress={() =>
+              run('like', async () => {
+                await communityService.setPostLiked(id, !likes.likedByMe);
+              })
+            }
+          />
+        </View>
+
+        {status && <Banner tone={status.tone}>{status.text}</Banner>}
       </View>
 
-      {status && <Banner tone={status.tone}>{status.text}</Banner>}
-
-      <Section title={t('post.comments', { count: comments.length })}>
-        {comments.length === 0 ? (
-          <AppText color={colors.textMuted}>{t('post.noComments')}</AppText>
-        ) : (
-          comments.map((c) => {
-            const name = c.author?.display_name ?? t('community.unknownUser');
-            return (
-              <View key={c.id} style={styles.comment}>
-                <View style={styles.commentHead}>
-                  <Pressable
-                    style={styles.flex}
-                    accessibilityRole={c.author_id === me ? undefined : 'button'}
-                    disabled={c.author_id === me}
-                    onPress={() => openUser(c.author_id)}
-                  >
-                    <AuthorLine
-                      name={name}
-                      uri={c.author?.avatar_url}
-                      when={formatAgo(t, c.created_at)}
-                      size={32}
-                    />
-                  </Pressable>
-                  {c.author_id === me ? (
-                    <IconButton
-                      icon="trash-outline"
-                      label={t('post.deleteComment')}
-                      onPress={() => setConfirmDelete({ kind: 'comment', id: c.id })}
-                    />
-                  ) : (
-                    <IconButton
-                      icon="flag-outline"
-                      label={t('post.reportComment', { name })}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/post/[id]/report',
-                          params: { id, comment: c.id },
-                        })
-                      }
-                    />
+      <ScrollView
+        ref={commentsRef}
+        style={styles.comments}
+        contentContainerStyle={styles.commentsContent}
+        onContentSizeChange={() => commentsRef.current?.scrollToEnd({ animated: true })}
+        showsVerticalScrollIndicator
+      >
+        <Section title={t('post.comments', { count: comments.length })}>
+          {comments.length === 0 ? (
+            <AppText color={colors.textMuted}>{t('post.noComments')}</AppText>
+          ) : (
+            comments.map((c) => {
+              const name = c.author?.display_name ?? t('community.unknownUser');
+              return (
+                <View key={c.id} style={styles.comment}>
+                  <View style={styles.commentHead}>
+                    <Pressable
+                      style={styles.flex}
+                      accessibilityRole={c.author_id === me ? undefined : 'button'}
+                      disabled={c.author_id === me}
+                      onPress={() => openUser(c.author_id)}
+                    >
+                      <AuthorLine
+                        name={name}
+                        uri={c.author?.avatar_url}
+                        when={formatAgo(t, c.created_at)}
+                        size={32}
+                      />
+                    </Pressable>
+                    {c.author_id === me ? (
+                      <IconButton
+                        icon="trash-outline"
+                        label={t('post.deleteComment')}
+                        onPress={() => setConfirmDelete({ kind: 'comment', id: c.id })}
+                      />
+                    ) : (
+                      <IconButton
+                        icon="flag-outline"
+                        label={t('post.reportComment', { name })}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/post/[id]/report',
+                            params: { id, comment: c.id },
+                          })
+                        }
+                      />
+                    )}
+                  </View>
+                  {c.body && <AppText>{c.body}</AppText>}
+                  {c.image_url && (
+                    <Image source={{ uri: c.image_url }} style={styles.commentImage} />
                   )}
                 </View>
-                <AppText>{c.body}</AppText>
-              </View>
-            );
-          })
-        )}
-      </Section>
+              );
+            })
+          )}
+        </Section>
+      </ScrollView>
 
       <ConfirmDialog
         visible={!!confirmDelete}
@@ -298,8 +383,11 @@ export default function PostScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.lg, paddingTop: spacing.sm },
+  content: { flex: 1, gap: spacing.lg, paddingTop: spacing.sm },
   flex: { flex: 1 },
+  postContent: { gap: spacing.lg },
+  comments: { flex: 1, minHeight: 0 },
+  commentsContent: { paddingBottom: spacing.md },
   image: { width: '100%', aspectRatio: 16 / 9, borderRadius: radii.md },
   likeRow: { flexDirection: 'row' },
   comment: {
@@ -309,5 +397,10 @@ const styles = StyleSheet.create({
     borderTopColor: colors.divider,
   },
   commentHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  commentImage: { width: 220, height: 160, borderRadius: radii.md },
+  composerWrap: { gap: spacing.sm },
+  preview: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+  previewImage: { width: 96, height: 72, borderRadius: radii.sm },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
+  sendButton: { alignSelf: 'flex-end' },
 });
