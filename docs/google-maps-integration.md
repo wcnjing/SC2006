@@ -61,6 +61,25 @@ supabase secrets set ONEMAP_TOKEN=your_onemap_token
 ```
 
 The function also receives `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` from Supabase. Invoke it once after deployment and
-schedule it monthly using a Supabase cron/HTTP job. Do not put `ONEMAP_TOKEN` or
+`SUPABASE_SERVICE_ROLE_KEY` from Supabase. OneMap access tokens expire after
+two days, so the repository workflow
+`.github/workflows/refresh-onemap-token.yml` refreshes the token and updates
+the `ONEMAP_TOKEN` Edge Function secret through the Supabase Management API.
+
+Configure these GitHub Actions repository secrets before enabling the scheduled
+workflow:
+
+- `ONEMAP_EMAIL`: the email registered with OneMap.
+- `ONEMAP_PASSWORD`: the OneMap password.
+- `SUPABASE_ACCESS_TOKEN`: a Supabase personal access token with permission to
+  manage project secrets.
+- `SUPABASE_PROJECT_REF`: the Supabase project reference.
+- `SUPABASE_SERVICE_ROLE_KEY`: the project service-role key, used only by the
+  monthly planning-area sync workflow.
+
+The workflow refreshes `ONEMAP_TOKEN` every two days. A separate workflow,
+`.github/workflows/sync-planning-areas.yml`, invokes
+`sync-planning-areas` on the first day of every month. Run both workflows
+manually once after adding the secrets to verify the setup. Do not put
+`ONEMAP_EMAIL`, `ONEMAP_PASSWORD`, `ONEMAP_TOKEN`, `SUPABASE_ACCESS_TOKEN`, or
 the service-role key in the client `.env`.

@@ -1,0 +1,28 @@
+name: Sync OneMap planning areas
+
+on:
+  schedule:
+    # Run on the first day of every month at 00:30 UTC.
+    - cron: '30 0 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync planning areas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke sync-planning-areas
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            --header "Content-Type: application/json" \
+            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/sync-planning-areas"
