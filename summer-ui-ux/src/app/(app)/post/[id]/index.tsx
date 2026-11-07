@@ -1,6 +1,6 @@
 import { validateCommentBody } from '@communitylink/shared';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Image, Pressable, StyleSheet, View } from 'react-native';
 
 import {
@@ -23,6 +23,7 @@ import { formatAgo } from '@/features/community/format';
 import { AuthorLine } from '@/features/community/PostCard';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey, errorText } from '@/services';
+import { markCommunityPostNotificationsRead } from '@/services/notifications';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 /**
@@ -35,6 +36,10 @@ export default function PostScreen() {
   const { t } = useSettings();
   const { session } = useAuth();
   const me = session?.account.accountId;
+
+  useEffect(() => {
+    void markCommunityPostNotificationsRead(id);
+  }, [id]);
 
   const [comment, setComment] = useState('');
   const [commentError, setCommentError] = useState<string | null>(null);

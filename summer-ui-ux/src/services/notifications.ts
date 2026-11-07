@@ -63,6 +63,20 @@ export async function markChatNotificationsRead(peerId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function markCommunityPostNotificationsRead(postId: string): Promise<void> {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) return;
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', data.user.id)
+    .in('type', ['community_post', 'community_post_reply'])
+    .filter('payload->>post_id', 'eq', postId)
+    .is('read_at', null);
+  if (error) throw error;
+}
+
 export function subscribeToNotifications(
   userId: string | undefined,
   onChange: () => void,
