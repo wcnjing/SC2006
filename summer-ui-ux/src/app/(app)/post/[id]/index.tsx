@@ -218,7 +218,7 @@ export default function PostScreen() {
       onRefresh={page.refresh}
       footer={
         <View style={styles.composerWrap}>
-          {commentImage && (
+          {!!commentImage && (
             <View style={styles.preview}>
               <Image source={{ uri: commentImage }} style={styles.previewImage} />
               <IconButton
@@ -354,8 +354,8 @@ export default function PostScreen() {
                       />
                     )}
                   </View>
-                  {c.body && <AppText>{c.body}</AppText>}
-                  {c.image_url && (
+                  {!!c.body && <AppText>{c.body}</AppText>}
+                  {!!c.image_url && (
                     <Image source={{ uri: c.image_url }} style={styles.commentImage} />
                   )}
                 </View>
