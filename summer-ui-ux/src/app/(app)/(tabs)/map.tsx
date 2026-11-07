@@ -1,4 +1,5 @@
 import MapView, { Marker, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
+import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -85,6 +86,7 @@ export default function MapScreen() {
               coordinate={{ latitude: activity.lat!, longitude: activity.lng! }}
               title={activity.title}
               description={activity.location_name}
+              onPress={() => router.push(`/activity/${activity.id}`)}
             />
           ))}
         </MapView>

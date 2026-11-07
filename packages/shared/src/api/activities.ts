@@ -61,7 +61,10 @@ export interface ActivityFilters {
   distance?: { origin: { lat: number; lng: number }; maxKm: number };
 }
 
-export function validCoordinates(point: { lat: number | null; lng: number | null }): boolean {
+export function validCoordinates(point: {
+  lat: number | null;
+  lng: number | null;
+}): point is { lat: number; lng: number } {
   return (
     point.lat !== null &&
     point.lng !== null &&

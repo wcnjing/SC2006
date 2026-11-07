@@ -1,4 +1,6 @@
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
+import { router } from 'expo-router';
+import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppHeader } from '@/components/layout/AppHeader';
@@ -15,6 +17,7 @@ export default function WebMapScreen() {
   const { session } = useAuth();
   const neighbourhood = findNeighbourhood(session?.profile?.neighbourhoodId);
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY;
+  const mapElement = useRef<HTMLDivElement | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -38,15 +41,38 @@ export default function WebMapScreen() {
     void loadActivities();
   }, [loadActivities]);
 
-  const mapUrl = useMemo(() => {
-    if (!apiKey || !neighbourhood) return null;
-    const params = new URLSearchParams({
-      key: apiKey,
-      center: `${neighbourhood.lat},${neighbourhood.lng}`,
-      zoom: '14',
-    });
-    return `https://www.google.com/maps/embed/v1/view?${params.toString()}`;
-  }, [apiKey, neighbourhood]);
+  useEffect(() => {
+    if (!apiKey || !mapElement.current || activities.length === 0) return;
+    let cancelled = false;
+    setOptions({ key: apiKey, v: 'weekly' });
+    void Promise.all([importLibrary('maps'), importLibrary('marker')])
+      .then(([{ Map }, { AdvancedMarkerElement }]) => {
+        if (cancelled || !mapElement.current) return;
+
+        const center = neighbourhood
+          ? { lat: neighbourhood.lat, lng: neighbourhood.lng }
+          : { lat: 1.3521, lng: 103.8198 };
+        const map = new Map(mapElement.current, {
+          center,
+          zoom: neighbourhood ? 14 : 11,
+          mapId: 'DEMO_MAP_ID',
+        });
+
+        for (const activity of activities) {
+          const marker = new AdvancedMarkerElement({
+            map,
+            position: { lat: activity.lat!, lng: activity.lng! },
+            title: activity.title,
+          });
+          marker.addListener('click', () => router.push(`/activity/${activity.id}`));
+        }
+      })
+      .catch(setError);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activities, apiKey, neighbourhood]);
 
   return (
     <Screen inTabs scroll header={<AppHeader />} contentStyle={styles.content}>
@@ -56,23 +82,15 @@ export default function WebMapScreen() {
       <AppText color={colors.textMuted} style={styles.subtitle}>
         {neighbourhood ? t(neighbourhood.labelKey as never) : t('profile.neighbourhood')}
       </AppText>
-      {mapUrl ? (
-        createElement('iframe', {
-          title: neighbourhood ? `Map of ${t(neighbourhood.labelKey as never)}` : 'Community map',
-          src: mapUrl,
-          loading: 'lazy',
-          referrerPolicy: 'no-referrer-when-downgrade',
-          style: styles.map,
-        })
-      ) : (
+      {!apiKey ? (
         <View style={styles.missingMap}>
           <AppText variant="h3">Map unavailable</AppText>
           <AppText color={colors.textMuted} style={styles.missingText}>
-            {!neighbourhood
-              ? 'Complete your profile with a neighbourhood to view its map.'
-              : 'Set EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY in the root .env file.'}
+            Set EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY in the root .env file.
           </AppText>
         </View>
+      ) : (
+        createElement('div', { ref: mapElement, style: styles.map })
       )}
       {loading && <LoadingState />}
       {!loading && Boolean(error) && (
@@ -95,7 +113,6 @@ const styles = StyleSheet.create({
   map: {
     width: '100%',
     height: 420,
-    borderWidth: 0,
     borderRadius: radii.lg,
   },
   missingMap: {

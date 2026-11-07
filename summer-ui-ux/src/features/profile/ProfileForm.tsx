@@ -39,6 +39,7 @@ type Errors = Partial<
 
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && a.every((x) => b.includes(x));
+const neighbourhoodSlug = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '-');
 
 /**
  * Shared by Complete Your Profile (UC #1-01 CreateProfile, FR 2.1) and
@@ -71,8 +72,10 @@ export function ProfileForm({ mode, initial, submitLabel, onSubmit }: Props) {
     listNeighbourhoods(supabase)
       .then((rows) => {
         const areas = rows
-          .filter((row) => row.onemap_id)
-          .map((row) => ({ value: row.onemap_id!, label: row.name }))
+          .map((row) => ({
+            value: row.onemap_id ?? neighbourhoodSlug(row.name),
+            label: row.name,
+          }))
           .sort((a, b) => a.label.localeCompare(b.label));
         if (active && areas.length > 0) setPlanningAreas(areas);
       })
