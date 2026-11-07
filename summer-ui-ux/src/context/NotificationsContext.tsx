@@ -12,6 +12,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import {
   createActivityReminders,
+  clearNotifications,
   listNotifications,
   markNotificationRead,
   subscribeToNotifications,
@@ -25,6 +26,7 @@ type NotificationsValue = {
   error: unknown;
   refresh: () => Promise<void>;
   markRead: (notification: AppNotification) => Promise<void>;
+  clear: () => Promise<void>;
 };
 
 const NotificationsContext = createContext<NotificationsValue | null>(null);
@@ -74,6 +76,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const clear = useCallback(async () => {
+    await clearNotifications();
+    setNotifications([]);
+  }, []);
+
   const value = useMemo(
     () => ({
       notifications,
@@ -82,8 +89,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       error,
       refresh,
       markRead,
+      clear,
     }),
-    [notifications, loading, error, refresh, markRead],
+    [notifications, loading, error, refresh, markRead, clear],
   );
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }

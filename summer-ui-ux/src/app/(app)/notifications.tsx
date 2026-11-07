@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import {
   AppText,
+  Button,
   EmptyState,
   ErrorState,
   ListRow,
@@ -23,7 +24,7 @@ function payloadText(payload: unknown, key: 'title' | 'body' | 'route'): string 
 
 export default function NotificationsScreen() {
   const { t } = useSettings();
-  const { notifications, loading, error, refresh, markRead } = useNotifications();
+  const { notifications, loading, error, refresh, markRead, clear } = useNotifications();
 
   return (
     <Screen
@@ -43,29 +44,37 @@ export default function NotificationsScreen() {
           body="You are all caught up."
         />
       ) : (
-        <View accessibilityRole="list">
-          {notifications.map((notification, index) => {
-            const route = payloadText(notification.payload, 'route');
-            return (
-              <View key={notification.id} style={index > 0 && styles.separator}>
-                <ListRow
-                  title={payloadText(notification.payload, 'title') ?? 'Notification'}
-                  subtitle={payloadText(notification.payload, 'body')}
-                  subtitleTone={notification.read_at ? 'muted' : 'alert'}
-                  left={
-                    <AppText variant="caption" color={colors.textMuted}>
-                      {new Date(notification.created_at).toLocaleDateString()}
-                    </AppText>
-                  }
-                  onPress={async () => {
-                    await markRead(notification);
-                    if (route) router.push(route as Parameters<typeof router.push>[0]);
-                  }}
-                />
-              </View>
-            );
-          })}
-        </View>
+        <>
+          <Button
+            label="Clear notifications"
+            icon="trash-outline"
+            variant="danger"
+            onPress={clear}
+          />
+          <View accessibilityRole="list">
+            {notifications.map((notification, index) => {
+              const route = payloadText(notification.payload, 'route');
+              return (
+                <View key={notification.id} style={index > 0 && styles.separator}>
+                  <ListRow
+                    title={payloadText(notification.payload, 'title') ?? 'Notification'}
+                    subtitle={payloadText(notification.payload, 'body')}
+                    subtitleTone={notification.read_at ? 'muted' : 'alert'}
+                    left={
+                      <AppText variant="caption" color={colors.textMuted}>
+                        {new Date(notification.created_at).toLocaleDateString()}
+                      </AppText>
+                    }
+                    onPress={async () => {
+                      await markRead(notification);
+                      if (route) router.push(route as Parameters<typeof router.push>[0]);
+                    }}
+                  />
+                </View>
+              );
+            })}
+          </View>
+        </>
       )}
     </Screen>
   );

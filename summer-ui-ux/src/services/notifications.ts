@@ -30,6 +30,12 @@ export async function markNotificationRead(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function clearNotifications(): Promise<void> {
+  if (!supabase) return;
+  const { error } = await supabase.from('notifications').delete().not('id', 'is', null);
+  if (error) throw error;
+}
+
 export function subscribeToNotifications(
   userId: string | undefined,
   onChange: () => void,
