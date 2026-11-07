@@ -1,6 +1,6 @@
 import { validateDirectMessageBody } from '@communitylink/shared';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -20,6 +20,7 @@ import { useT } from '@/context/SettingsContext';
 import { formatAgo } from '@/features/community/format';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey, errorText } from '@/services';
+import { subscribeToConversation } from '@/services/notifications';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 /**
@@ -42,6 +43,11 @@ export default function ConversationScreen() {
     ]);
     return conversation && { conversation, messages: history.messages };
   });
+
+  useEffect(() => {
+    const unsubscribe = subscribeToConversation(me, id, page.revalidate);
+    return unsubscribe ?? undefined;
+  }, [id, me, page.revalidate]);
 
   const name = page.data?.conversation.profile.display_name ?? t('messages.title');
   const header = (

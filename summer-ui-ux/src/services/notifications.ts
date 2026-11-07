@@ -53,3 +53,38 @@ export function subscribeToNotifications(
     void client.removeChannel(channel);
   };
 }
+
+export function subscribeToConversation(
+  userId: string | undefined,
+  peerId: string,
+  onChange: () => void,
+): (() => void) | null {
+  if (!supabase || !userId) return null;
+  const client = supabase;
+  const channel = client
+    .channel(`conversation:${userId}:${peerId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `sender_id=eq.${peerId}`,
+      },
+      onChange,
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `sender_id=eq.${userId}`,
+      },
+      onChange,
+    )
+    .subscribe();
+  return () => {
+    void client.removeChannel(channel);
+  };
+}
