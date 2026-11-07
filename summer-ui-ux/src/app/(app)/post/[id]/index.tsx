@@ -377,14 +377,14 @@ export default function PostScreen() {
                       />
                     )}
                   </View>
-                  {!!c.body && <AppText>{c.body}</AppText>}
-                  {!!c.image_url && (
+                  {c.body ? <AppText>{String(c.body)}</AppText> : null}
+                  {c.image_url ? (
                     <ImageViewer
                       uri={c.image_url}
                       style={styles.commentImage}
                       label="Open comment image"
                     />
-                  )}
+                  ) : null}
                 </View>
               );
             })
