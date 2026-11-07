@@ -86,7 +86,7 @@ export default function HomeScreen() {
   return (
     <Screen
       inTabs
-      header={<AppHeader unread={1} />}
+      header={<AppHeader />}
       contentStyle={styles.content}
       refreshing={feed.refreshing}
       onRefresh={feed.refresh}

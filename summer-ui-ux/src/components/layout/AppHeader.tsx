@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Avatar } from '@/components/ui/Avatar';
 import { IconButton } from '@/components/ui/IconButton';
 import { useAuth } from '@/context/AuthContext';
+import { useNotifications } from '@/context/NotificationsContext';
 import { useT } from '@/context/SettingsContext';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -16,6 +17,7 @@ import { Wordmark } from './Logo';
 export function AppHeader({ unread = 0 }: { unread?: number }) {
   const t = useT();
   const { session } = useAuth();
+  const { unreadCount } = useNotifications();
   const profile = session?.profile;
   return (
     <View style={styles.bar}>
@@ -24,7 +26,7 @@ export function AppHeader({ unread = 0 }: { unread?: number }) {
         <IconButton
           icon="notifications-outline"
           label={t('home.notifications')}
-          badge={unread || false}
+          badge={unread || unreadCount || false}
           onPress={() => router.push('/notifications')}
         />
         <Pressable

@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 
 import { useSettings } from '@/context/SettingsContext';
+import { NotificationsProvider } from '@/context/NotificationsContext';
 import { colors } from '@/theme/tokens';
 
 /**
@@ -10,13 +11,15 @@ import { colors } from '@/theme/tokens';
 export default function AppLayout() {
   const { reduceMotion } = useSettings();
   return (
-    <Stack
-      initialRouteName="(tabs)"
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
-        animation: reduceMotion ? 'none' : 'default',
-      }}
-    />
+    <NotificationsProvider>
+      <Stack
+        initialRouteName="(tabs)"
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+          animation: reduceMotion ? 'none' : 'default',
+        }}
+      />
+    </NotificationsProvider>
   );
 }

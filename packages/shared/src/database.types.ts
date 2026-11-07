@@ -469,6 +469,7 @@ export type Database = {
       notifications: {
         Row: {
           created_at: string;
+          dedupe_key: string | null;
           id: string;
           payload: Json;
           read_at: string | null;
@@ -477,6 +478,7 @@ export type Database = {
         };
         Insert: {
           created_at?: string;
+          dedupe_key?: string | null;
           id?: string;
           payload?: Json;
           read_at?: string | null;
@@ -485,6 +487,7 @@ export type Database = {
         };
         Update: {
           created_at?: string;
+          dedupe_key?: string | null;
           id?: string;
           payload?: Json;
           read_at?: string | null;
@@ -719,6 +722,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_activity_reminders: { Args: never; Returns: number };
       are_connected: {
         Args: { user_a: string; user_b: string };
         Returns: boolean;
