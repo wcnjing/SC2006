@@ -1,6 +1,7 @@
 import { validateDirectMessageBody } from '@communitylink/shared';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ScrollView } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -35,6 +36,8 @@ export default function ConversationScreen() {
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollToLatest = () => scrollViewRef.current?.scrollToEnd({ animated: true });
 
   const page = useAsync(async () => {
     const [conversation, history] = await Promise.all([
@@ -48,6 +51,10 @@ export default function ConversationScreen() {
     const unsubscribe = subscribeToConversation(me, id, page.revalidate);
     return unsubscribe ?? undefined;
   }, [id, me, page.revalidate]);
+
+  useEffect(() => {
+    if (page.data?.messages.length) requestAnimationFrame(scrollToLatest);
+  }, [page.data?.messages.length]);
 
   const name = page.data?.conversation.profile.display_name ?? t('messages.title');
   const header = (
@@ -106,6 +113,8 @@ export default function ConversationScreen() {
       contentStyle={styles.content}
       refreshing={page.refreshing}
       onRefresh={page.refresh}
+      scrollViewRef={scrollViewRef}
+      onContentSizeChange={scrollToLatest}
       footer={
         conversation.canSend && (
           <View style={styles.composer}>
@@ -169,7 +178,7 @@ export default function ConversationScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.md, paddingTop: spacing.sm },
   flex: { flex: 1 },
-  list: { gap: spacing.sm },
+  list: { flexGrow: 1, justifyContent: 'flex-end', gap: spacing.sm, paddingBottom: spacing.sm },
   bubble: { maxWidth: '80%', padding: spacing.md, borderRadius: radii.lg, gap: spacing.xxs },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.primary },
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.surfaceMuted },

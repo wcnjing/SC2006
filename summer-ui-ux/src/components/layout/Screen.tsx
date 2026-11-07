@@ -9,6 +9,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import type { RefObject } from 'react';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { colors, CONTENT_MAX_WIDTH, spacing } from '@/theme/tokens';
@@ -27,6 +28,8 @@ type Props = {
   /** Pull-to-refresh (scrolling screens only). Pass both. */
   refreshing?: boolean;
   onRefresh?: () => void;
+  scrollViewRef?: RefObject<ScrollView | null>;
+  onContentSizeChange?: (width: number, height: number) => void;
 };
 
 /**
@@ -42,6 +45,8 @@ export function Screen({
   contentStyle,
   refreshing,
   onRefresh,
+  scrollViewRef,
+  onContentSizeChange,
 }: Props) {
   const edges: Edge[] =
     inTabs || footer ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom'];
@@ -56,8 +61,10 @@ export function Screen({
         {header && <View style={styles.column}>{header}</View>}
         {scroll ? (
           <ScrollView
+            ref={scrollViewRef}
             style={styles.flex}
             contentContainerStyle={styles.scrollContent}
+            onContentSizeChange={onContentSizeChange}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             refreshControl={
