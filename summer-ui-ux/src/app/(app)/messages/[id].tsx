@@ -1,8 +1,7 @@
 import { validateDirectMessageBody } from '@communitylink/shared';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import type { ScrollView } from 'react-native';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import {
   AppText,
@@ -36,6 +35,7 @@ export default function ConversationScreen() {
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollToLatest = () => scrollViewRef.current?.scrollToEnd({ animated: true });
 
@@ -152,9 +152,11 @@ export default function ConversationScreen() {
           {messages.map((m) => {
             const mine = m.sender_id === me;
             return (
-              <View
+              <Pressable
                 key={m.id}
                 accessible
+                onHoverIn={() => setHoveredMessageId(m.id)}
+                onHoverOut={() => setHoveredMessageId(null)}
                 accessibilityLabel={t(mine ? 'messages.fromMe' : 'messages.fromThem', {
                   name,
                   body: m.body ?? '',
@@ -166,7 +168,14 @@ export default function ConversationScreen() {
                 <AppText variant="caption" color={mine ? colors.onPrimary : colors.textMuted}>
                   {formatAgo(t, m.created_at)}
                 </AppText>
-              </View>
+                {hoveredMessageId === m.id && (
+                  <View pointerEvents="none" style={styles.timestampTooltip}>
+                    <AppText variant="caption" color={colors.onPrimary}>
+                      {new Date(m.created_at).toLocaleString()}
+                    </AppText>
+                  </View>
+                )}
+              </Pressable>
             );
           })}
         </View>
@@ -182,5 +191,15 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '80%', padding: spacing.md, borderRadius: radii.lg, gap: spacing.xxs },
   mine: { alignSelf: 'flex-end', backgroundColor: colors.primary },
   theirs: { alignSelf: 'flex-start', backgroundColor: colors.surfaceMuted },
+  timestampTooltip: {
+    position: 'absolute',
+    bottom: -30,
+    left: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radii.sm,
+    backgroundColor: colors.text,
+    zIndex: 1,
+  },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
 });
