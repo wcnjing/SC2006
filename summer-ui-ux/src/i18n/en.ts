@@ -35,6 +35,7 @@ export const en = {
   'tab.discover': 'Discover',
   'tab.map': 'Map',
   'tab.community': 'Community',
+  'tab.chats': 'Chats',
   'tab.profile': 'Profile',
 
   // Auth: login

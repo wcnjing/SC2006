@@ -19,12 +19,13 @@ const TABS: { name: string; labelKey: TranslationKey; icon: IconName; iconActive
     icon: 'chatbubbles-outline',
     iconActive: 'chatbubbles',
   },
+  { name: 'messages', labelKey: 'tab.chats', icon: 'chatbox-outline', iconActive: 'chatbox' },
   { name: 'profile', labelKey: 'tab.profile', icon: 'person-outline', iconActive: 'person' },
 ];
 
 /**
- * Dialog Map 3: Consumer shell, the 5-tab navigation spine
- * (Home · Discover · Map · Community · Profile), same order as every mockup.
+ * Dialog Map 3: Consumer shell navigation spine
+ * (Home · Discover · Map · Community · Chats · Profile).
  * The active tab uses a filled icon as well as brand red, so it is not
  * shown by colour alone.
  */

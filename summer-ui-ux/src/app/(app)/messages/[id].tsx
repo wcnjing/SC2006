@@ -20,7 +20,11 @@ import { useT } from '@/context/SettingsContext';
 import { formatAgo } from '@/features/community/format';
 import { useAsync } from '@/lib/useAsync';
 import { communityService, errorMessageKey, errorText } from '@/services';
-import { subscribeToConversation } from '@/services/notifications';
+import {
+  markChatNotificationsRead,
+  markConversationRead,
+  subscribeToConversation,
+} from '@/services/notifications';
 import { colors, radii, spacing } from '@/theme/tokens';
 
 /**
@@ -51,6 +55,10 @@ export default function ConversationScreen() {
     const unsubscribe = subscribeToConversation(me, id, page.revalidate);
     return unsubscribe ?? undefined;
   }, [id, me, page.revalidate]);
+
+  useEffect(() => {
+    void Promise.all([markConversationRead(id), markChatNotificationsRead(id)]);
+  }, [id]);
 
   useEffect(() => {
     if (page.data?.messages.length) requestAnimationFrame(scrollToLatest);
@@ -125,6 +133,8 @@ export default function ConversationScreen() {
                 onChangeText={setBody}
                 error={error}
                 multiline
+                submitBehavior="submit"
+                onSubmitEditing={() => void send()}
               />
             </View>
             <Button
