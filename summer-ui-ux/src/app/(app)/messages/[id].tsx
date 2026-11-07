@@ -3,12 +3,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
   type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
   type TextInputContentSizeChangeEventData,
 } from 'react-native';
 
@@ -19,6 +19,7 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
+  ImageViewer,
   LoadingState,
   Screen,
   ScreenHeader,
@@ -130,6 +131,18 @@ export default function ConversationScreen() {
     }
   };
 
+  const handleBodyChange = (value: string) => {
+    setBody(value);
+    if (!value.trim()) setComposerHeight(40);
+  };
+
+  const handleBodyKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (event.nativeEvent.key === 'Enter' && !event.nativeEvent.shiftKey) {
+      event.preventDefault();
+      void send();
+    }
+  };
+
   const chooseImage = async () => {
     if (!me) return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -162,7 +175,11 @@ export default function ConversationScreen() {
           <View style={styles.composerWrap}>
             {imageUrl && (
               <View style={styles.preview}>
-                <Image source={{ uri: imageUrl }} style={styles.previewImage} />
+                <ImageViewer
+                  uri={imageUrl}
+                  style={styles.previewImage}
+                  label="Preview attached image"
+                />
                 <IconButton
                   icon="close-circle"
                   label="Remove attached image"
@@ -182,7 +199,7 @@ export default function ConversationScreen() {
                 <TextField
                   label={t('messages.write')}
                   value={body}
-                  onChangeText={setBody}
+                  onChangeText={handleBodyChange}
                   error={error}
                   compact
                   multiline
@@ -190,12 +207,13 @@ export default function ConversationScreen() {
                   onContentSizeChange={(
                     event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>,
                   ) => {
-                    const height = Math.min(
-                      120,
-                      Math.max(40, event.nativeEvent.contentSize.height),
-                    );
-                    setComposerHeight(height);
+                    if (body.trim()) {
+                      setComposerHeight(
+                        Math.min(120, Math.max(40, event.nativeEvent.contentSize.height)),
+                      );
+                    }
                   }}
+                  onKeyPress={handleBodyKeyPress}
                   submitBehavior="submit"
                   onSubmitEditing={() => void send()}
                 />
@@ -243,7 +261,13 @@ export default function ConversationScreen() {
                 {m.body && (
                   <AppText color={mine ? colors.onPrimary : colors.text}>{m.body}</AppText>
                 )}
-                {m.image_url && <Image source={{ uri: m.image_url }} style={styles.messageImage} />}
+                {!!m.image_url && (
+                  <ImageViewer
+                    uri={m.image_url}
+                    style={styles.messageImage}
+                    label="Open message image"
+                  />
+                )}
                 <AppText variant="caption" color={mine ? colors.onPrimary : colors.textMuted}>
                   {formatAgo(t, m.created_at)}
                 </AppText>

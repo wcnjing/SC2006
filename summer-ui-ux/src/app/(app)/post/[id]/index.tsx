@@ -4,12 +4,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
   type NativeSyntheticEvent,
+  type TextInputKeyPressEventData,
   type TextInputContentSizeChangeEventData,
 } from 'react-native';
 
@@ -21,6 +21,7 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
+  ImageViewer,
   LoadingState,
   Screen,
   ScreenHeader,
@@ -175,6 +176,18 @@ export default function PostScreen() {
     );
   };
 
+  const handleCommentChange = (value: string) => {
+    setComment(value);
+    if (!value.trim()) setCommentComposerHeight(40);
+  };
+
+  const handleCommentKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (event.nativeEvent.key === 'Enter' && !event.nativeEvent.shiftKey) {
+      event.preventDefault();
+      send();
+    }
+  };
+
   const chooseCommentImage = async () => {
     if (!me) return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -220,7 +233,11 @@ export default function PostScreen() {
         <View style={styles.composerWrap}>
           {!!commentImage && (
             <View style={styles.preview}>
-              <Image source={{ uri: commentImage }} style={styles.previewImage} />
+              <ImageViewer
+                uri={commentImage}
+                style={styles.previewImage}
+                label="Preview attached image"
+              />
               <IconButton
                 icon="close-circle"
                 label="Remove attached image"
@@ -240,7 +257,7 @@ export default function PostScreen() {
               <TextField
                 label={t('post.addComment')}
                 value={comment}
-                onChangeText={setComment}
+                onChangeText={handleCommentChange}
                 error={commentError}
                 compact
                 multiline
@@ -248,9 +265,13 @@ export default function PostScreen() {
                 onContentSizeChange={(
                   event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>,
                 ) => {
-                  const height = Math.min(120, Math.max(40, event.nativeEvent.contentSize.height));
-                  setCommentComposerHeight(height);
+                  if (comment.trim()) {
+                    setCommentComposerHeight(
+                      Math.min(120, Math.max(40, event.nativeEvent.contentSize.height)),
+                    );
+                  }
                 }}
+                onKeyPress={handleCommentKeyPress}
               />
             </View>
             <Button
@@ -281,7 +302,9 @@ export default function PostScreen() {
           />
         </Pressable>
         <AppText>{post.body}</AppText>
-        {post.image_url && <Image source={{ uri: post.image_url }} style={styles.image} />}
+        {!!post.image_url && (
+          <ImageViewer uri={post.image_url} style={styles.image} label="Open post image" />
+        )}
 
         <View style={styles.likeRow}>
           <Button
@@ -356,7 +379,11 @@ export default function PostScreen() {
                   </View>
                   {!!c.body && <AppText>{c.body}</AppText>}
                   {!!c.image_url && (
-                    <Image source={{ uri: c.image_url }} style={styles.commentImage} />
+                    <ImageViewer
+                      uri={c.image_url}
+                      style={styles.commentImage}
+                      label="Open comment image"
+                    />
                   )}
                 </View>
               );

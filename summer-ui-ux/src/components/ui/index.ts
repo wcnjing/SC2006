@@ -14,6 +14,7 @@ export { Chip, ChipGroup } from './Chip';
 export { EmptyState } from './EmptyState';
 export { LoadingState, ErrorState } from './LoadingState';
 export { IconButton } from './IconButton';
+export { ImageViewer } from './ImageViewer';
 export { ListRow } from './ListRow';
 export { SegmentedTabs } from './SegmentedTabs';
 export { Select } from './Select';
