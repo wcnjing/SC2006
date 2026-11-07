@@ -54,16 +54,23 @@ export default function NotificationsScreen() {
           <View accessibilityRole="list">
             {notifications.map((notification, index) => {
               const route = payloadText(notification.payload, 'route');
+              const unread = !notification.read_at;
               return (
-                <View key={notification.id} style={index > 0 && styles.separator}>
+                <View
+                  key={notification.id}
+                  style={[index > 0 && styles.separator, unread && styles.unreadNotification]}
+                >
                   <ListRow
                     title={payloadText(notification.payload, 'title') ?? 'Notification'}
                     subtitle={payloadText(notification.payload, 'body')}
                     subtitleTone={notification.read_at ? 'muted' : 'alert'}
                     left={
-                      <AppText variant="caption" color={colors.textMuted}>
-                        {new Date(notification.created_at).toLocaleDateString()}
-                      </AppText>
+                      <View style={styles.date}>
+                        {unread && <View style={styles.unreadDot} />}
+                        <AppText variant="caption" color={colors.textMuted}>
+                          {new Date(notification.created_at).toLocaleDateString()}
+                        </AppText>
+                      </View>
                     }
                     onPress={async () => {
                       await markRead(notification);
@@ -83,4 +90,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.lg, paddingTop: spacing.sm },
   separator: { borderTopWidth: 1, borderTopColor: colors.divider },
+  unreadNotification: { backgroundColor: colors.primarySoft, borderRadius: 10 },
+  date: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
 });
