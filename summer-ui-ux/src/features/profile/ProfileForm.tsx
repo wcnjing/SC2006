@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useMemo, useState } from 'react';
+import { listNeighbourhoods } from '@communitylink/shared';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -16,6 +17,7 @@ import { ACCESSIBILITY_TAGS, CATEGORIES, NEIGHBOURHOODS, enabled } from '@/confi
 import { useSettings } from '@/context/SettingsContext';
 import type { TranslationKey } from '@/i18n/en';
 import { validateDisplayName, validateImageType } from '@/lib/validation';
+import { supabase } from '@/lib/supabase';
 import type { ProfileInput } from '@/types/models';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -44,6 +46,9 @@ const sameSet = (a: string[], b: string[]) =>
  */
 export function ProfileForm({ mode, initial, submitLabel, onSubmit }: Props) {
   const { t } = useSettings();
+  const [planningAreas, setPlanningAreas] = useState(
+    enabled(NEIGHBOURHOODS).map((n) => ({ value: n.id, label: t(n.labelKey as TranslationKey) })),
+  );
   const start: ProfileFormValues = useMemo(
     () => ({
       displayName: initial.displayName ?? '',
@@ -59,6 +64,25 @@ export function ProfileForm({ mode, initial, submitLabel, onSubmit }: Props) {
   const [values, setValues] = useState<ProfileFormValues>(start);
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    listNeighbourhoods(supabase)
+      .then((rows) => {
+        const areas = rows
+          .filter((row) => row.onemap_id)
+          .map((row) => ({ value: row.onemap_id!, label: row.name }))
+          .sort((a, b) => a.label.localeCompare(b.label));
+        if (active && areas.length > 0) setPlanningAreas(areas);
+      })
+      .catch(() => {
+        // Keep the catalogue fallback when the synced planning-area table is unavailable.
+      });
+    return () => {
+      active = false;
+    };
+  }, [t]);
 
   const set = <K extends keyof ProfileFormValues>(k: K, v: ProfileFormValues[K]) => {
     setValues((s) => ({ ...s, [k]: v }));
@@ -150,10 +174,7 @@ export function ProfileForm({ mode, initial, submitLabel, onSubmit }: Props) {
         label={t('profile.neighbourhood')}
         leftIcon="location-outline"
         value={values.neighbourhoodId || null}
-        options={enabled(NEIGHBOURHOODS).map((n) => ({
-          value: n.id,
-          label: t(n.labelKey as TranslationKey),
-        }))}
+        options={planningAreas}
         onChange={(v) => set('neighbourhoodId', v)}
         error={errors.neighbourhoodId && t(errors.neighbourhoodId)}
       />

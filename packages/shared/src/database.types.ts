@@ -435,21 +435,24 @@ export type Database = {
       neighbourhoods: {
         Row: {
           id: number;
-          lat: number;
-          lng: number;
+          lat: number | null;
+          lng: number | null;
           name: string;
+          onemap_id: string | null;
         };
         Insert: {
           id?: never;
-          lat: number;
-          lng: number;
+          lat?: number | null;
+          lng?: number | null;
           name: string;
+          onemap_id?: string | null;
         };
         Update: {
           id?: never;
-          lat?: number;
-          lng?: number;
+          lat?: number | null;
+          lng?: number | null;
           name?: string;
+          onemap_id?: string | null;
         };
         Relationships: [];
       };

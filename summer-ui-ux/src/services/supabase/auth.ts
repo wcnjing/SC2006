@@ -90,8 +90,9 @@ export function createSupabaseAuth(client: CommunityLinkClient): {
   const profile: ProfileService = {
     saveProfile: (_accountId, input: ProfileInput) =>
       call(async () => {
-        const { idBySlug } = await neighbourhoodIds(client);
-        const neighbourhoodId = idBySlug.get(input.neighbourhoodId);
+        const { idBySlug, idByOneMapId } = await neighbourhoodIds(client);
+        const neighbourhoodId =
+          idByOneMapId.get(input.neighbourhoodId) ?? idBySlug.get(input.neighbourhoodId);
         if (neighbourhoodId === undefined) throw new ServiceError('NOT_FOUND');
         // FR 2.1 / 2.2: one update, so a failed save leaves no partial profile.
         const row = await updateMyProfile(client, {

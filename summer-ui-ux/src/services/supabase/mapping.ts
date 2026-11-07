@@ -6,8 +6,11 @@ import type { Session, UserAccount, UserProfile } from '@/types/models';
 
 const slugify = (name: string) => name.trim().toLowerCase().replace(/\s+/g, '-');
 
-let hoodCache: Promise<{ slugById: Map<number, string>; idBySlug: Map<string, number> }> | null =
-  null;
+let hoodCache: Promise<{
+  slugById: Map<number, string>;
+  idBySlug: Map<string, number>;
+  idByOneMapId: Map<string, number>;
+}> | null = null;
 
 /**
  * neighbourhoods.id ↔ catalog slug, matched by name ("Toa Payoh" → "toa-payoh").
@@ -17,14 +20,16 @@ export function neighbourhoodIds(client: CommunityLinkClient) {
   hoodCache ??= listNeighbourhoods(client).then((rows) => {
     const slugById = new Map<number, string>();
     const idBySlug = new Map<string, number>();
+    const idByOneMapId = new Map<string, number>();
     for (const row of rows) {
       const slug = slugify(row.name);
       slugById.set(row.id, slug);
       idBySlug.set(slug, row.id);
+      if (row.onemap_id) idByOneMapId.set(row.onemap_id, row.id);
     }
     // Fall back to the catalog's dbId for anything the table didn't return.
     for (const n of NEIGHBOURHOODS) if (!idBySlug.has(n.id)) idBySlug.set(n.id, n.dbId);
-    return { slugById, idBySlug };
+    return { slugById, idBySlug, idByOneMapId };
   });
   hoodCache.catch(() => (hoodCache = null));
   return hoodCache;
