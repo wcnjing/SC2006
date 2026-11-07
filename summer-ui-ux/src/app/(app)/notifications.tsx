@@ -72,6 +72,19 @@ export default function NotificationsScreen() {
                         </AppText>
                       </View>
                     }
+                    right={
+                      unread ? (
+                        <View style={styles.newBadge}>
+                          <AppText
+                            variant="caption"
+                            color={colors.onPrimary}
+                            style={styles.newText}
+                          >
+                            New
+                          </AppText>
+                        </View>
+                      ) : undefined
+                    }
                     onPress={async () => {
                       await markRead(notification);
                       if (route) router.push(route as Parameters<typeof router.push>[0]);
@@ -93,4 +106,11 @@ const styles = StyleSheet.create({
   unreadNotification: { backgroundColor: colors.primarySoft, borderRadius: 10 },
   date: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  newBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+  },
+  newText: { fontWeight: '700' },
 });
