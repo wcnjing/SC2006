@@ -384,6 +384,7 @@ export type Database = {
         Row: {
           body: string | null;
           created_at: string;
+          activity_id: string | null;
           id: string;
           read_at: string | null;
           recipient_id: string;
@@ -391,6 +392,7 @@ export type Database = {
           shared_post_id: string | null;
         };
         Insert: {
+          activity_id?: string | null;
           body?: string | null;
           created_at?: string;
           id?: string;
@@ -400,6 +402,7 @@ export type Database = {
           shared_post_id?: string | null;
         };
         Update: {
+          activity_id?: string | null;
           body?: string | null;
           created_at?: string;
           id?: string;
@@ -409,6 +412,13 @@ export type Database = {
           shared_post_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: 'messages_activity_id_fkey';
+            columns: ['activity_id'];
+            isOneToOne: false;
+            referencedRelation: 'activities';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'messages_recipient_id_fkey';
             columns: ['recipient_id'];
@@ -714,12 +724,17 @@ export type Database = {
         Returns: boolean;
       };
       send_direct_message: {
-        Args: { p_recipient: string; p_body: string; p_request_id?: string };
+        Args: {
+          p_recipient: string;
+          p_body: string;
+          p_request_id?: string;
+          p_activity_id?: string;
+        };
         Returns: Database['public']['Tables']['messages']['Row'][];
       };
       set_user_block: { Args: { p_target_user: string; p_blocked: boolean }; Returns: boolean };
       get_direct_conversation: {
-        Args: { p_other_user: string };
+        Args: { p_other_user: string; p_activity_id?: string };
         Returns: {
           id: string;
           display_name: string;

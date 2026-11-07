@@ -198,6 +198,20 @@ export default function ActivityDetailsScreen() {
       fullWidth={false}
     />
   );
+  const messageOrganiserButton =
+    resident && activity.source === 'organiser' && activity.organiser_id ? (
+      <Button
+        label="Message organiser"
+        icon="chatbubble-outline"
+        variant="outline"
+        onPress={() =>
+          router.push({
+            pathname: '/messages/[id]',
+            params: { id: activity.organiser_id!, activityId: activity.id },
+          })
+        }
+      />
+    ) : null;
 
   let primary;
   if (canRate) {
@@ -253,6 +267,7 @@ export default function ActivityDetailsScreen() {
         ) : (
           resident && (
             <View style={styles.footer}>
+              {messageOrganiserButton}
               {saveButton}
               {primary}
             </View>

@@ -28,7 +28,7 @@ import { colors, radii, spacing } from '@/theme/tokens';
  * either way (P3's send_direct_message); otherwise the reason is shown.
  */
 export default function ConversationScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, activityId } = useLocalSearchParams<{ id: string; activityId?: string }>();
   const t = useT();
   const me = useAuth().session?.account.accountId;
   const [body, setBody] = useState('');
@@ -37,7 +37,7 @@ export default function ConversationScreen() {
 
   const page = useAsync(async () => {
     const [conversation, history] = await Promise.all([
-      communityService.getDirectConversation(id),
+      communityService.getDirectConversation(id, { activityId }),
       communityService.listDirectMessages(id, { limit: 50 }),
     ]);
     return conversation && { conversation, messages: history.messages };
@@ -80,7 +80,11 @@ export default function ConversationScreen() {
     if (invalid) return;
     setSending(true);
     try {
-      await communityService.sendDirectMessage({ recipientId: id, body });
+      await communityService.sendDirectMessage({
+        recipientId: id,
+        body,
+        activityId,
+      });
       setBody('');
       await page.revalidate();
     } catch (e) {

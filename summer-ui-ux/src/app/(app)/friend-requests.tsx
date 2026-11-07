@@ -35,7 +35,9 @@ const isTab = (v: unknown): v is Tab => v === 'requests' || v === 'friends' || v
 export default function FriendsScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
   const t = useT();
-  const me = useAuth().session?.account.accountId;
+  const { session, hasRole } = useAuth();
+  const me = session?.account.accountId;
+  const resident = hasRole('resident');
   const [tab, setTab] = useState<Tab>(isTab(params.tab) ? params.tab : 'requests');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
@@ -44,12 +46,16 @@ export default function FriendsScreen() {
     async () => (await communityService.listConnections({ limit: 50 })).connections,
   );
   const people = useAsync(async () =>
-    tab === 'find'
+    tab === 'find' && resident
       ? (await communityService.findConnectionPeople({ query, limit: 50 })).people
       : [],
   );
   const { revalidate } = people;
   // Search as the user types, a moment after they stop.
+  useEffect(() => {
+    if (!resident && tab === 'find') setTab('requests');
+  }, [resident, tab]);
+
   useEffect(() => {
     const timer = setTimeout(revalidate, 300);
     return () => clearTimeout(timer);
@@ -99,7 +105,7 @@ export default function FriendsScreen() {
           autoCapitalize="words"
         />
         {people.error ? (
-          <ErrorState message={t(errorMessageKey(people.error))} onRetry={people.reload} />
+          <ErrorState message={errorText(t, people.error)} onRetry={people.reload} />
         ) : people.loading && !people.data ? (
           <LoadingState />
         ) : people.data?.length ? (
@@ -185,7 +191,7 @@ export default function FriendsScreen() {
         tabs={[
           { value: 'requests', label: t('connect.tabRequests') },
           { value: 'friends', label: t('connect.tabFriends') },
-          { value: 'find', label: t('connect.tabFind') },
+          ...(resident ? [{ value: 'find' as const, label: t('connect.tabFind') }] : []),
         ]}
       />
       {status && <Banner tone={status.tone}>{status.text}</Banner>}

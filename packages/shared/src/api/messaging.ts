@@ -8,6 +8,7 @@ export interface SendDirectMessageInput {
   recipientId: string;
   body: string;
   requestId?: string;
+  activityId?: string;
 }
 export interface MessageCursor {
   createdAt: string;
@@ -75,6 +76,7 @@ export async function sendDirectMessage(
   const invalid = validateDirectMessageBody(input.body);
   if (invalid) throw new ApiError(invalid, 'validation');
   if (input.requestId !== undefined) validId(input.requestId);
+  if (input.activityId !== undefined) validId(input.activityId);
   await otherUser(client, input.recipientId);
   return unwrap(
     await client
@@ -82,6 +84,7 @@ export async function sendDirectMessage(
         p_recipient: input.recipientId,
         p_body: input.body.trim(),
         ...(input.requestId ? { p_request_id: input.requestId } : {}),
+        ...(input.activityId ? { p_activity_id: input.activityId } : {}),
       })
       .single(),
   );
@@ -89,10 +92,14 @@ export async function sendDirectMessage(
 export async function getDirectConversation(
   client: CommunityLinkClient,
   userId: string,
-  { signal }: { signal?: AbortSignal } = {},
+  { signal, activityId }: { signal?: AbortSignal; activityId?: string } = {},
 ): Promise<DirectConversation | null> {
   await otherUser(client, userId);
-  const query = client.rpc('get_direct_conversation', { p_other_user: userId });
+  if (activityId !== undefined) validId(activityId);
+  const query = client.rpc('get_direct_conversation', {
+    p_other_user: userId,
+    ...(activityId ? { p_activity_id: activityId } : {}),
+  });
   const response = await (signal ? query.abortSignal(signal) : query).maybeSingle();
   const row = unwrap(response);
   return row
