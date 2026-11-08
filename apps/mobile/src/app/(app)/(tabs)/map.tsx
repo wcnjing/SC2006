@@ -31,9 +31,7 @@ export default function MapScreen() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await activityService.listActivities(
-        undefined,
-      );
+      const rows = await activityService.listActivities(undefined);
       setActivities(rows.filter((activity) => activity.lat != null && activity.lng != null));
     } catch (reason) {
       setError(reason);

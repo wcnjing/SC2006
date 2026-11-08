@@ -5,8 +5,7 @@ import { supabase } from '@/lib/supabase';
 export type AppNotification = Notification;
 
 let subscriptionId = 0;
-const channelName = (prefix: string, userId: string) =>
-  `${prefix}:${userId}:${++subscriptionId}`;
+const channelName = (prefix: string, userId: string) => `${prefix}:${userId}:${++subscriptionId}`;
 
 export async function listNotifications(): Promise<AppNotification[]> {
   if (!supabase) return [];

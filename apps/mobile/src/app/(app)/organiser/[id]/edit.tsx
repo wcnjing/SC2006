@@ -29,10 +29,7 @@ import { activityService, errorMessageKey, errorText, ServiceError } from '@/ser
 import { spacing } from '@/theme/tokens';
 import type { Activity } from '@/types/models';
 import { geocodeAddress } from '@/services/geocoding';
-import {
-  listActivityImages,
-  saveActivityImages,
-} from '@/services/supabase/uploads';
+import { listActivityImages, saveActivityImages } from '@/services/supabase/uploads';
 
 /**
  * Edit / cancel activity (FR 11.2, UC UpdateActivity / CancelActivity).

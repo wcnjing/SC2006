@@ -29,8 +29,7 @@ export async function geocodeAddress(address: string): Promise<{ lat: number; ln
     // Fall through to Google for temporary OneMap failures.
   }
 
-  const key =
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY;
+  const key = process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY;
   if (!key) throw new ServiceError('GEOCODING_FAILED');
 
   const response = await fetch(

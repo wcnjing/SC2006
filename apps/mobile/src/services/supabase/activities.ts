@@ -24,7 +24,10 @@ import type { ActivityService } from '../types';
 import { call } from './errors';
 import { listActivityImages } from './uploads';
 
-async function withImages(client: CommunityLinkClient, activity: Awaited<ReturnType<typeof getActivity>>) {
+async function withImages(
+  client: CommunityLinkClient,
+  activity: Awaited<ReturnType<typeof getActivity>>,
+) {
   if (!activity) return activity;
   const images = await listActivityImages(activity.organiser_id, activity.id);
   return { ...activity, image_urls: images.map((image) => image.uri) };

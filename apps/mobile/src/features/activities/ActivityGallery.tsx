@@ -37,11 +37,7 @@ export function ActivityGallery({ activity }: { activity: Activity }) {
         {images.map((uri, index) => (
           <View key={uri ?? `fallback-${index}`} style={{ width: imageWidth }}>
             {uri ? (
-              <ImageViewer
-                uri={uri}
-                style={styles.image}
-                label={t('detail.openImage')}
-              />
+              <ImageViewer uri={uri} style={styles.image} label={t('detail.openImage')} />
             ) : (
               <ActivityImage category={activity.category} height={220} rounded={false} />
             )}
@@ -68,10 +64,13 @@ export function ActivityGallery({ activity }: { activity: Activity }) {
               onPress={() => goTo(current + 1)}
             />
           </View>
-          <View style={styles.dots} accessibilityLabel={t('detail.imagePosition', {
-            current: current + 1,
-            total: images.length,
-          })}>
+          <View
+            style={styles.dots}
+            accessibilityLabel={t('detail.imagePosition', {
+              current: current + 1,
+              total: images.length,
+            })}
+          >
             {images.map((uri, index) => (
               <View
                 key={uri ?? `dot-${index}`}
