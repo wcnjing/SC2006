@@ -57,6 +57,7 @@ beforeEach(() => {
 
 describe('report submission', () => {
   it('submits an account report and rejects self-reporting', async () => {
+    respond({ role: 'resident' });
     respond({ ...report, target_type: 'user' });
     await submitReport(client, { targetType: 'user', targetId, reason: 'Harassment' });
     expect(request().body.target_type).toBe('user');
@@ -64,7 +65,15 @@ describe('report submission', () => {
     await expect(
       submitReport(client, { targetType: 'user', targetId: userId, reason: 'Spam' }),
     ).rejects.toMatchObject({ code: 'validation' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('rejects admin accounts before inserting a report', async () => {
+    respond({ role: 'admin' });
+    await expect(
+      submitReport(client, { targetType: 'user', targetId, reason: 'Spam' }),
+    ).rejects.toMatchObject({ code: 'forbidden' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(request().init?.method ?? 'GET').toBe('GET');
   });
   it('derives the reporter, trims content and excludes review/identity spoofing', async () => {
     respond(null);

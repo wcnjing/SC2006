@@ -259,7 +259,7 @@ async function withState<T>(fn: (s: State, me: Me) => T | Promise<T>): Promise<T
 }
 type Me = { id: string; admin: boolean };
 
-let peopleCache: Map<string, ConnectionProfile & { status?: string }> | null = null;
+let peopleCache: Map<string, ConnectionProfile & { status?: string; role?: string }> | null = null;
 /** Public profile of anyone (mock account or seeded neighbour). Loaded before each call. */
 async function loadPeople() {
   const accounts = (await mockPeople()).map((p) => ({
@@ -268,6 +268,7 @@ async function loadPeople() {
     avatar_url: p.avatar_url,
     neighbourhood_id: hoodId(p.neighbourhoodSlug),
     status: p.status,
+    role: p.role,
   }));
   const neighbours = NEIGHBOURS.map((n) => ({
     id: n.id,
@@ -456,7 +457,9 @@ export const mockCommunity: CommunityService = {
       check(validateReportContent(input.reason, input.details));
       const target =
         input.targetType === 'user'
-          ? input.targetId !== me.id && person(input.targetId)
+          ? input.targetId !== me.id &&
+            person(input.targetId)?.role !== 'admin' &&
+            person(input.targetId)
           : input.targetType === 'post'
             ? visiblePost(s, me, input.targetId)
             : input.targetType === 'activity'

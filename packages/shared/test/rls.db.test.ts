@@ -316,6 +316,21 @@ describe('suspension with an existing Auth session', () => {
       reason: 'Spam',
     });
     expect(self.error?.code).toBe('42501');
+    const adminReport = await admin.client.from('reports').insert({
+      reporter_id: admin.id,
+      target_type: 'user',
+      target_id: admin.id,
+      reason: 'Spam',
+    });
+    expect(adminReport.error?.code).toBe('42501');
+    const anotherAdmin = await userWithRole('protected-admin', 'admin');
+    const protectedReport = await admin.client.from('reports').insert({
+      reporter_id: admin.id,
+      target_type: 'user',
+      target_id: anotherAdmin.id,
+      reason: 'Spam',
+    });
+    expect(protectedReport.error?.code).toBe('42501');
     const review = await getModerationReport(admin.client, report.id);
     expect(review?.content?.authorId).toBe(target.id);
     await expect(

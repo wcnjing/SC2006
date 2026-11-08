@@ -112,12 +112,14 @@ export default function UserScreen() {
       </View>
 
       {status && <Banner tone={status.tone}>{status.text}</Banner>}
-      <Button
-        label={t('report.userTitle')}
-        icon="flag-outline"
-        variant="outline"
-        onPress={() => router.push({ pathname: '/report-user', params: { id } })}
-      />
+      {page.data.role !== 'admin' && (
+        <Button
+          label={t('report.userTitle')}
+          icon="flag-outline"
+          variant="outline"
+          onPress={() => router.push({ pathname: '/report-user', params: { id } })}
+        />
+      )}
 
       {blockedByMe ? (
         <Banner tone="warning">{t('user.youBlocked')}</Banner>

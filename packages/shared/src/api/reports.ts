@@ -87,6 +87,16 @@ export async function submitReport(
     const existing = await existingReport();
     if (existing) return existing;
   }
+  if (input.targetType === 'user') {
+    const response = await client
+      .from('profiles')
+      .select('role')
+      .eq('id', input.targetId)
+      .maybeSingle();
+    const target = unwrap(response);
+    if (!target || target.role === 'admin')
+      throw new ApiError('This account cannot be reported.', 'forbidden');
+  }
   const result = await client
     .from('reports')
     .insert({
