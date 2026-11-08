@@ -58,7 +58,28 @@ export function createSupabaseActivities(client: CommunityLinkClient): ActivityS
         const names = new Map((data ?? []).map((p) => [p.id, p.display_name]));
         return rows.map((r) => ({ ...r, reviewer_name: names.get(r.user_id) ?? null }));
       }),
-    listMine: () => call(() => listMyActivityCollections(client)),
+    // Attach each activity's uploaded images so rows show the first one as the cover.
+    // An activity can appear in several lists (saved + joined), so load each only once.
+    listMine: () =>
+      call(async () => {
+        const lists = await listMyActivityCollections(client);
+        const cards = [...lists.saved, ...lists.joined, ...lists.history];
+        const byId = new Map(cards.map((card) => [card.activity.id, card.activity]));
+        const loaded = new Map(
+          await Promise.all(
+            [...byId.values()].map(
+              async (activity) => [activity.id, await withImages(client, activity)] as const,
+            ),
+          ),
+        );
+        const attach = (list: typeof cards) =>
+          list.map((card) => ({ ...card, activity: loaded.get(card.activity.id) ?? card.activity }));
+        return {
+          saved: attach(lists.saved),
+          joined: attach(lists.joined),
+          history: attach(lists.history),
+        };
+      }),
     createDiscoverySession: (ids) =>
       call(async () => {
         const session = await createActivityDiscoverySession(client, ids);
