@@ -12,6 +12,7 @@ export const REPORT_STATUS: Record<ReportStatus, { label: TranslationKey; tone: 
 
 /** Reportable content types (FR 8.4): label, admin queue title and tile icon. */
 export const REPORT_TYPES = {
+  user: { label: 'admin.typeUser', queue: 'admin.reportedUsers', icon: 'person-outline' },
   post: { label: 'admin.typePost', queue: 'admin.reportedPosts', icon: 'document-text-outline' },
   comment: {
     label: 'admin.typeComment',

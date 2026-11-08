@@ -69,7 +69,13 @@ export default function ReviewReportScreen() {
     setStatus(null);
     try {
       await communityService.reviewContentReport(report.id, action, reason);
-      const text = t(action === 'remove' ? 'admin.removedToast' : 'admin.dismissedToast');
+      const text = t(
+        action === 'remove'
+          ? report.target_type === 'user'
+            ? 'admin.accountSuspendedToast'
+            : 'admin.removedToast'
+          : 'admin.dismissedToast',
+      );
       setStatus({ tone: 'success', text });
       AccessibilityInfo.announceForAccessibility(text);
       await page.revalidate();
@@ -96,7 +102,7 @@ export default function ReviewReportScreen() {
               style={styles.flex}
             />
             <Button
-              label={t('admin.remove')}
+              label={t(report.target_type === 'user' ? 'admin.suspend' : 'admin.remove')}
               variant="danger"
               icon="trash-outline"
               loading={busy === 'remove'}
@@ -173,11 +179,15 @@ export default function ReviewReportScreen() {
 
       <ConfirmDialog
         visible={confirmRemove}
-        title={t('admin.removeTitle')}
+        title={t(report.target_type === 'user' ? 'admin.suspendTitle' : 'admin.removeTitle')}
         body={t(
-          report.target_type === 'activity' ? 'admin.removeActivityBody' : 'admin.removeBody',
+          report.target_type === 'user'
+            ? 'admin.suspendReportedBody'
+            : report.target_type === 'activity'
+              ? 'admin.removeActivityBody'
+              : 'admin.removeBody',
         )}
-        confirmLabel={t('admin.remove')}
+        confirmLabel={t(report.target_type === 'user' ? 'admin.suspend' : 'admin.remove')}
         cancelLabel={t('common.cancel')}
         destructive
         onConfirm={() => decide('remove')}

@@ -32,7 +32,12 @@ export default function AdminDashboardScreen() {
     ]);
     const count = (type: string) => open.reports.filter((r) => r.target_type === type).length;
     return {
-      open: { post: count('post'), comment: count('comment'), activity: count('activity') },
+      open: {
+        post: count('post'),
+        comment: count('comment'),
+        activity: count('activity'),
+        user: count('user'),
+      },
       audit: audit.entries,
     };
   });

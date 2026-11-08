@@ -302,6 +302,36 @@ describe('social rules', () => {
 });
 
 describe('suspension with an existing Auth session', () => {
+  it('reports an account, prevents self reports, and suspends it through admin review', async () => {
+    const target = await userWithRole('reported-account', 'resident');
+    const report = await submitReport(resident.client, {
+      targetType: 'user',
+      targetId: target.id,
+      reason: 'Harassment',
+    });
+    const self = await resident.client.from('reports').insert({
+      reporter_id: resident.id,
+      target_type: 'user',
+      target_id: resident.id,
+      reason: 'Spam',
+    });
+    expect(self.error?.code).toBe('42501');
+    const review = await getModerationReport(admin.client, report.id);
+    expect(review?.content?.authorId).toBe(target.id);
+    await expect(
+      reviewContentReport(resident.client, report.id, 'remove', 'Denied'),
+    ).rejects.toMatchObject({ code: '42501' });
+    const result = await reviewContentReport(
+      admin.client,
+      report.id,
+      'remove',
+      'Harassment confirmed',
+    );
+    expect(result.status).toBe('actioned');
+    expect((await getMyProfile(target.client)).status).toBe('suspended');
+    expect((await getMyProfile(target.client)).suspended_reason).toBe('Harassment confirmed');
+    await setUserStatus(admin.client, target.id, 'active');
+  });
   it('restricts organiser approval to admins, checks eligibility and records the approval', async () => {
     const candidate = await userWithRole('organiser-candidate', 'resident');
     expect(

@@ -623,6 +623,12 @@ export const en = {
   'admin.role.organiser': 'Organiser',
   'admin.role.admin': 'Administrator',
   'admin.showMoreUsers': 'Show more accounts',
+  'report.userTitle': 'Report account',
+  'admin.typeUser': 'Account',
+  'admin.reportedUsers': 'Reported accounts',
+  'admin.suspendReportedBody':
+    'Suspend this account and mark the report as actioned? The account will lose access until reinstated.',
+  'admin.accountSuspendedToast': 'Account suspended and report actioned.',
   'admin.verifyHint':
     'Approve an active resident as an organiser after reviewing their identity. Organisers can create and manage activities. Existing organisers are already approved.',
   'admin.approveOrganiser': 'Approve as organiser',

@@ -56,6 +56,16 @@ beforeEach(() => {
 });
 
 describe('report submission', () => {
+  it('submits an account report and rejects self-reporting', async () => {
+    respond({ ...report, target_type: 'user' });
+    await submitReport(client, { targetType: 'user', targetId, reason: 'Harassment' });
+    expect(request().body.target_type).toBe('user');
+    expect(request().body.target_id).toBe(targetId);
+    await expect(
+      submitReport(client, { targetType: 'user', targetId: userId, reason: 'Spam' }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it('derives the reporter, trims content and excludes review/identity spoofing', async () => {
     respond(null);
     respond(report);

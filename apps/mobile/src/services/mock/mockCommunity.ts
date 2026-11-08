@@ -24,7 +24,7 @@ import { readJSON, writeJSON } from '@/lib/storage';
 
 import { ServiceError, type CommunityService } from '../types';
 import { cancelMockActivity, findMockActivity, mockOrganiserName } from './mockActivities';
-import { currentMockUser, MOCK_IDS, mockPeople, mockUuid } from './mockBackend';
+import { currentMockUser, MOCK_IDS, mockAdmin, mockPeople, mockUuid } from './mockBackend';
 
 /**
  * In-device stand-in for P3's community API (@communitylink/shared posts,
@@ -42,6 +42,7 @@ const KEY = 'mock-community-v1';
 const delay = () => new Promise((r) => setTimeout(r, 300));
 
 type State = {
+  suspendedAccounts?: Record<string, string>;
   posts: Post[];
   comments: Comment[];
   likes: PostLike[];
@@ -244,7 +245,7 @@ function seed(): State {
 }
 
 /** Read state + the current user, run fn, and save. Like auth.uid() on the server: never trust an id from the UI. */
-async function withState<T>(fn: (s: State, me: Me) => T): Promise<T> {
+async function withState<T>(fn: (s: State, me: Me) => T | Promise<T>): Promise<T> {
   await delay();
   const { account } = await currentMockUser();
   const s = (await readJSON<State>(KEY)) ?? seed();
@@ -252,13 +253,13 @@ async function withState<T>(fn: (s: State, me: Me) => T): Promise<T> {
     id: account.accountId,
     admin: can({ role: account.roles[0], status: account.status }, 'report:review'),
   };
-  const result = fn(s, me);
+  const result = await fn(s, me);
   await writeJSON(KEY, s);
   return result;
 }
 type Me = { id: string; admin: boolean };
 
-let peopleCache: Map<string, ConnectionProfile> | null = null;
+let peopleCache: Map<string, ConnectionProfile & { status?: string }> | null = null;
 /** Public profile of anyone (mock account or seeded neighbour). Loaded before each call. */
 async function loadPeople() {
   const accounts = (await mockPeople()).map((p) => ({
@@ -266,6 +267,7 @@ async function loadPeople() {
     display_name: p.display_name,
     avatar_url: p.avatar_url,
     neighbourhood_id: hoodId(p.neighbourhoodSlug),
+    status: p.status,
   }));
   const neighbours = NEIGHBOURS.map((n) => ({
     id: n.id,
@@ -336,7 +338,7 @@ function pendingRef(
   );
 }
 
-const call = async <T>(fn: (s: State, me: Me) => T) => {
+const call = async <T>(fn: (s: State, me: Me) => T | Promise<T>): Promise<T> => {
   await loadPeople();
   return withState(fn);
 };
@@ -453,11 +455,13 @@ export const mockCommunity: CommunityService = {
     call((s, me) => {
       check(validateReportContent(input.reason, input.details));
       const target =
-        input.targetType === 'post'
-          ? visiblePost(s, me, input.targetId)
-          : input.targetType === 'activity'
-            ? openActivity(input.targetId)
-            : s.comments.find((c) => c.id === input.targetId && !c.is_removed);
+        input.targetType === 'user'
+          ? input.targetId !== me.id && person(input.targetId)
+          : input.targetType === 'post'
+            ? visiblePost(s, me, input.targetId)
+            : input.targetType === 'activity'
+              ? openActivity(input.targetId)
+              : s.comments.find((c) => c.id === input.targetId && !c.is_removed);
       if (!target) fail('This content is no longer available.', 'not_found');
       const report: Report = {
         id: input.requestId ?? mockUuid(),
@@ -507,6 +511,23 @@ export const mockCommunity: CommunityService = {
       const parent = comment && s.posts.find((p) => p.id === comment.post_id);
       const row = post || comment;
       const activity = report.target_type === 'activity' && findMockActivity(report.target_id);
+      const account = report.target_type === 'user' && person(report.target_id);
+      if (account)
+        return {
+          report,
+          content: {
+            id: account.id,
+            type: 'user' as const,
+            authorId: account.id,
+            author: account,
+            body: '',
+            imageUrl: null,
+            createdAt: report.created_at,
+            isRemoved: account.status === 'suspended' || !!s.suspendedAccounts?.[account.id],
+            removedReason: s.suspendedAccounts?.[account.id] ?? null,
+            parentPost: null,
+          },
+        };
       if (activity)
         return {
           report,
@@ -545,7 +566,7 @@ export const mockCommunity: CommunityService = {
     }),
 
   reviewContentReport: (reportId, action, reason) =>
-    call((s, me) => {
+    call(async (s, me) => {
       check(validateModerationReason(reason));
       requireAdmin(me);
       const report = s.reports.find((r) => r.id === reportId);
@@ -553,6 +574,12 @@ export const mockCommunity: CommunityService = {
       if (report.status !== 'open') fail('This report was already reviewed.', 'conflict');
       const now = new Date().toISOString();
       if (action === 'remove') {
+        if (report.target_type === 'user') {
+          const account = (await mockPeople()).find((p) => p.id === report.target_id);
+          if (account) await mockAdmin.setStatus(report.target_id, 'suspended', reason.trim());
+          else if (!person(report.target_id)) return fail('Account no longer exists.', 'not_found');
+          else (s.suspendedAccounts ??= {})[report.target_id] = reason.trim();
+        }
         const target =
           s.posts.find((p) => p.id === report.target_id) ??
           s.comments.find((c) => c.id === report.target_id);

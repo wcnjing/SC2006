@@ -62,6 +62,25 @@ it('rejects non-admin and suspended readers before reading reports/content/audit
   }
 });
 
+it('loads the reported account and its current suspension state for review', async () => {
+  respond(admin);
+  respond({ ...report, target_type: 'user' });
+  respond({
+    id: targetId,
+    display_name: 'Reported user',
+    avatar_url: null,
+    created_at: date,
+    status: 'suspended',
+    suspended_reason: 'Harassment',
+  });
+  expect((await getModerationReport(client, reportId))?.content).toMatchObject({
+    type: 'user',
+    authorId: targetId,
+    isRemoved: true,
+    removedReason: 'Harassment',
+  });
+});
+
 it('lists queue status and stable pages without applying a reporter filter', async () => {
   respond(admin);
   respond([
