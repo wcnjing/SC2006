@@ -46,7 +46,8 @@ import { colors, radii, spacing } from '@/theme/tokens';
 export default function ConversationScreen() {
   const { id, activityId } = useLocalSearchParams<{ id: string; activityId?: string }>();
   const t = useT();
-  const me = useAuth().session?.account.accountId;
+  const { session, hasRole } = useAuth();
+  const me = session?.account.accountId;
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -237,7 +238,14 @@ export default function ConversationScreen() {
     >
       {!conversation.canSend && (
         <Banner tone="info">
-          {t(conversation.blockedByMe ? 'messages.blocked' : 'messages.notConnected', { name })}
+          {t(
+            conversation.blockedByMe
+              ? 'messages.blocked'
+              : conversation.role === 'resident' && !hasRole('organiser')
+                ? 'messages.notConnected'
+                : 'messages.activityClosed',
+            { name },
+          )}
         </Banner>
       )}
       {messages.length === 0 ? (

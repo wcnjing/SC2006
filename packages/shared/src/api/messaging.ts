@@ -1,4 +1,4 @@
-import type { Message } from '../types';
+import type { Message, UserRole } from '../types';
 import type { ConnectionProfile } from './connections';
 import { requireUserId } from './auth';
 import { ApiError, unwrap, type CommunityLinkClient } from './client';
@@ -26,6 +26,8 @@ export interface DirectMessagePage {
 }
 export interface DirectConversation {
   profile: ConnectionProfile;
+  /** The other person's role. Organisers and residents are never friends. */
+  role: UserRole;
   connected: boolean;
   blockedByMe: boolean;
   canSend: boolean;
@@ -114,11 +116,40 @@ export async function getDirectConversation(
           avatar_url: row.avatar_url,
           neighbourhood_id: row.neighbourhood_id,
         },
+        role: row.role,
         connected: row.connected,
         blockedByMe: row.blocked_by_me,
         canSend: row.can_send,
       }
     : null;
+}
+/**
+ * People you have organiser <-> resident activity chats with (messages tagged
+ * with an activity), most recent first. Friends are listed by listConnections.
+ */
+export async function listActivityConversations(
+  client: CommunityLinkClient,
+  { limit = 200, signal }: { limit?: number; signal?: AbortSignal } = {},
+): Promise<ConnectionProfile[]> {
+  const me = await requireUserId(client);
+  const query = client
+    .from('messages')
+    .select('sender_id, recipient_id')
+    .not('activity_id', 'is', null)
+    .or(`sender_id.eq.${me},recipient_id.eq.${me}`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  const rows = unwrap(await (signal ? query.abortSignal(signal) : query));
+  const ids = [...new Set(rows.map((m) => (m.sender_id === me ? m.recipient_id : m.sender_id)))];
+  if (!ids.length) return [];
+  const profiles = unwrap(
+    await client
+      .from('profiles')
+      .select('id, display_name, avatar_url, neighbourhood_id')
+      .in('id', ids),
+  );
+  const byId = new Map(profiles.map((p) => [p.id, p]));
+  return ids.map((id) => byId.get(id)).filter((p): p is ConnectionProfile => !!p);
 }
 export async function listDirectMessages(
   client: CommunityLinkClient,

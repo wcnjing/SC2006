@@ -538,9 +538,16 @@ export const en = {
   'messages.open': 'Open conversation',
   'messages.empty': 'No conversations yet',
   'messages.emptyBody': 'You can message neighbours once they accept your friend request.',
+  'messages.emptyOrganiserBody':
+    'Residents registered for your upcoming activities can message you here.',
+  'user.message': 'Message',
+  'user.activityContact':
+    'Organisers and residents can message each other while the resident is registered for an upcoming activity.',
   'messages.write': 'Write a message',
   'messages.noMessages': 'Say hello to {name}!',
   'messages.notConnected': 'You can message {name} once you are connected.',
+  'messages.activityClosed':
+    'Messaging {name} is only open while the resident is registered for an upcoming activity.',
   'messages.blocked': 'You blocked {name}. Unblock them to message again.',
   'messages.fromMe': 'You, {when}: {body}',
   'messages.fromThem': '{name}, {when}: {body}',

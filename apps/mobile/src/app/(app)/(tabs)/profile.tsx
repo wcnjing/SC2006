@@ -45,8 +45,17 @@ export default function ProfileTab() {
   const activity: MenuItem[] = hasRole('resident')
     ? [{ key: 'profile.myActivities', icon: 'calendar-outline', href: '/my-activities' }]
     : [];
+  // Friendships are resident <-> resident only.
   const connect: MenuItem[] = [
-    { key: 'profile.friendRequests', icon: 'person-add-outline', href: '/friend-requests' },
+    ...(hasRole('resident')
+      ? [
+          {
+            key: 'profile.friendRequests',
+            icon: 'person-add-outline',
+            href: '/friend-requests',
+          } as MenuItem,
+        ]
+      : []),
     { key: 'profile.messages', icon: 'chatbubble-ellipses-outline', href: '/messages' },
     { key: 'profile.myReports', icon: 'flag-outline', href: '/my-reports' },
     { key: 'profile.blockedUsers', icon: 'ban-outline', href: '/blocked-users' },

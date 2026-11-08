@@ -25,19 +25,28 @@ import {
 import { colors, spacing } from '@/theme/tokens';
 
 /**
- * Messages (FR 8.2; Dialog Map: Profile → Direct messages). P3 only allows
- * direct messages between connected residents, so the list is your friends.
+ * Messages (FR 8.2; Dialog Map: Profile → Direct messages). Lists your
+ * friends (resident <-> resident) plus organiser <-> resident activity chats.
+ * Organisers have no friends, so they only see activity chats.
  */
 export default function MessagesScreen() {
   const t = useT();
   const segments = useSegments() as readonly string[];
-  const me = useAuth().session?.account.accountId;
+  const { session, hasRole } = useAuth();
+  const me = session?.account.accountId;
+  const resident = hasRole('resident');
   const friends = useAsync(async () => {
-    const people = (
-      await communityService.listConnections({ view: 'friends', limit: 50 })
-    ).connections
+    const [connections, activityChats] = await Promise.all([
+      resident
+        ? communityService.listConnections({ view: 'friends', limit: 50 })
+        : Promise.resolve({ connections: [] }),
+      communityService.listActivityConversations(),
+    ]);
+    const friendProfiles = connections.connections
       .map((c) => (c.requester_id === me ? c.addressee : c.requester))
       .filter((p) => p !== null);
+    const seen = new Set(friendProfiles.map((p) => p.id));
+    const people = [...friendProfiles, ...activityChats.filter((p) => !seen.has(p.id))];
     return Promise.all(
       people.map(async (profile) => ({
         profile,
@@ -66,9 +75,13 @@ export default function MessagesScreen() {
         <EmptyState
           icon="chatbubbles-outline"
           title={t('messages.empty')}
-          body={t('messages.emptyBody')}
-          actionLabel={t('connect.findPeople')}
-          onAction={() => router.push({ pathname: '/friend-requests', params: { tab: 'find' } })}
+          body={resident ? t('messages.emptyBody') : t('messages.emptyOrganiserBody')}
+          actionLabel={resident ? t('connect.findPeople') : undefined}
+          onAction={
+            resident
+              ? () => router.push({ pathname: '/friend-requests', params: { tab: 'find' } })
+              : undefined
+          }
         />
       ) : (
         <View accessibilityRole="list">
@@ -105,7 +118,7 @@ export default function MessagesScreen() {
           })}
         </View>
       )}
-      {!!friends.data?.length && (
+      {resident && !!friends.data?.length && (
         <Button
           label={t('connect.findPeople')}
           variant="outline"

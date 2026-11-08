@@ -5,14 +5,22 @@ import {
 } from '@communitylink/shared';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { Banner, Button, Screen, ScreenHeader, TextField } from '@/components/ui';
+import {
+  Banner,
+  Button,
+  IconButton,
+  ImageViewer,
+  Screen,
+  ScreenHeader,
+  TextField,
+} from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { useT } from '@/context/SettingsContext';
 import { errorText } from '@/services';
 import { uploadImage } from '@/services/supabase/uploads';
-import { spacing } from '@/theme/tokens';
+import { colors, radii, spacing } from '@/theme/tokens';
 
 type Props = {
   title: string;
@@ -91,18 +99,36 @@ export function PostForm({ title, submitLabel, initial, onSubmit }: Props) {
         loading={uploading}
         onPress={chooseImage}
       />
-      <TextField
-        label={t('post.imageLabel')}
-        hint={t('post.imageHint')}
-        optional
-        value={imageUrl}
-        onChangeText={setImageUrl}
-        error={errors.image}
-        autoCapitalize="none"
-        keyboardType="url"
-      />
+      {!!imageUrl && (
+        <View style={styles.preview}>
+          <ImageViewer uri={imageUrl} style={styles.previewImage} label="Preview attached image" />
+          <View style={styles.removeButton}>
+            <IconButton
+              icon="close-circle"
+              label="Remove attached image"
+              color={colors.error}
+              onPress={() => {
+                setImageUrl('');
+                setErrors((prev) => ({ ...prev, image: null }));
+              }}
+            />
+          </View>
+        </View>
+      )}
+      {errors.image && <Banner tone="error">{errors.image}</Banner>}
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({ content: { gap: spacing.lg, paddingTop: spacing.sm } });
+const styles = StyleSheet.create({
+  content: { gap: spacing.lg, paddingTop: spacing.sm },
+  preview: { position: 'relative' },
+  previewImage: { width: '100%', aspectRatio: 16 / 9, borderRadius: radii.md },
+  removeButton: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+  },
+});
