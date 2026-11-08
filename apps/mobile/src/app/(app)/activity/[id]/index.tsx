@@ -199,9 +199,9 @@ export default function ActivityDetailsScreen() {
     />
   );
   const messageOrganiserButton =
-    resident && activity.source === 'organiser' && activity.organiser_id ? (
+    resident && joined && activity.source === 'organiser' && activity.organiser_id ? (
       <Button
-        label="Message organiser"
+        label={t('detail.messageOrganiser')}
         icon="chatbubble-outline"
         variant="outline"
         onPress={() =>

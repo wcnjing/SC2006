@@ -4,6 +4,10 @@ import { supabase } from '@/lib/supabase';
 
 export type AppNotification = Notification;
 
+let subscriptionId = 0;
+const channelName = (prefix: string, userId: string) =>
+  `${prefix}:${userId}:${++subscriptionId}`;
+
 export async function listNotifications(): Promise<AppNotification[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
@@ -119,7 +123,7 @@ export function subscribeToConversation(
   if (!supabase || !userId) return null;
   const client = supabase;
   const channel = client
-    .channel(`conversation:${userId}:${peerId}`)
+    .channel(channelName(`conversation:${userId}:${peerId}`, userId))
     .on(
       'postgres_changes',
       {
@@ -153,7 +157,7 @@ export function subscribeToUserMessages(
   if (!supabase || !userId) return null;
   const client = supabase;
   const channel = client
-    .channel(`user-messages:${userId}`)
+    .channel(channelName('user-messages', userId))
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${userId}` },

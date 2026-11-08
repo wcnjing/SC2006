@@ -43,6 +43,7 @@ export const en = {
   'detail.nextImage': 'Next image',
   'detail.imagePosition': 'Image {current} of {total}',
   'detail.openImage': 'Expand activity image',
+  'detail.messageOrganiser': 'Message organiser',
 
   // Tabs
   'tab.home': 'Home',
