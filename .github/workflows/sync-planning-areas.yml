@@ -21,8 +21,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ -z "${SUPABASE_PROJECT_REF}" ]]; then
+            echo "SUPABASE_PROJECT_REF is missing. Add it as a GitHub Actions repository secret."
+            exit 1
+          fi
+          if [[ -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY is missing. Add it as a GitHub Actions repository secret."
+            exit 1
+          fi
+          project_ref="${SUPABASE_PROJECT_REF#https://}"
+          project_ref="${project_ref#http://}"
+          project_ref="${project_ref%%.supabase.co/*}"
+          project_ref="${project_ref%%.supabase.co}"
           curl --fail-with-body --silent --show-error \
             --request POST \
             --header "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             --header "Content-Type: application/json" \
-            "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/sync-planning-areas"
+            "https://${project_ref}.supabase.co/functions/v1/sync-planning-areas"

@@ -73,7 +73,9 @@ workflow:
 - `ONEMAP_PASSWORD`: the OneMap password.
 - `SUPABASE_ACCESS_TOKEN`: a Supabase personal access token with permission to
   manage project secrets.
-- `SUPABASE_PROJECT_REF`: the Supabase project reference.
+- `SUPABASE_PROJECT_REF`: the Supabase project reference only, such as
+  `abcdefghijklmnop` (not the full URL). The workflow also accepts a full
+  `https://<project-ref>.supabase.co` value.
 - `SUPABASE_SERVICE_ROLE_KEY`: the project service-role key, used only by the
   monthly planning-area sync workflow.
 
