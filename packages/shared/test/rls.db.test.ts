@@ -301,6 +301,143 @@ describe('social rules', () => {
   });
 });
 
+describe('suspension with an existing Auth session', () => {
+  it('reports an account, prevents self reports, and suspends it through admin review', async () => {
+    const target = await userWithRole('reported-account', 'resident');
+    const report = await submitReport(resident.client, {
+      targetType: 'user',
+      targetId: target.id,
+      reason: 'Harassment',
+    });
+    const self = await resident.client.from('reports').insert({
+      reporter_id: resident.id,
+      target_type: 'user',
+      target_id: resident.id,
+      reason: 'Spam',
+    });
+    expect(self.error?.code).toBe('42501');
+    const adminReport = await admin.client.from('reports').insert({
+      reporter_id: admin.id,
+      target_type: 'user',
+      target_id: admin.id,
+      reason: 'Spam',
+    });
+    expect(adminReport.error?.code).toBe('42501');
+    const anotherAdmin = await userWithRole('protected-admin', 'admin');
+    const protectedReport = await admin.client.from('reports').insert({
+      reporter_id: admin.id,
+      target_type: 'user',
+      target_id: anotherAdmin.id,
+      reason: 'Spam',
+    });
+    expect(protectedReport.error?.code).toBe('42501');
+    const review = await getModerationReport(admin.client, report.id);
+    expect(review?.content?.authorId).toBe(target.id);
+    await expect(
+      reviewContentReport(resident.client, report.id, 'remove', 'Denied'),
+    ).rejects.toMatchObject({ code: '42501' });
+    const result = await reviewContentReport(
+      admin.client,
+      report.id,
+      'remove',
+      'Harassment confirmed',
+    );
+    expect(result.status).toBe('actioned');
+    expect((await getMyProfile(target.client)).status).toBe('suspended');
+    expect((await getMyProfile(target.client)).suspended_reason).toBe('Harassment confirmed');
+    await setUserStatus(admin.client, target.id, 'active');
+  });
+  it('restricts organiser approval to admins, checks eligibility and records the approval', async () => {
+    const candidate = await userWithRole('organiser-candidate', 'resident');
+    expect(
+      (await resident.client.rpc('verify_organiser', { target_user: candidate.id })).error?.code,
+    ).toBe('42501');
+    await setUserStatus(admin.client, candidate.id, 'suspended', 'Approval test');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: candidate.id })).error?.code,
+    ).toBe('42501');
+    await setUserStatus(admin.client, candidate.id, 'active');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: candidate.id })).error,
+    ).toBeNull();
+    expect((await getMyProfile(candidate.client)).role).toBe('organiser');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: candidate.id })).error?.code,
+    ).toBe('42501');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: admin.id })).error?.code,
+    ).toBe('42501');
+    const audit = await service
+      .from('audit_log')
+      .select('actor_id, action')
+      .eq('target_id', candidate.id)
+      .eq('action', 'verify_organiser');
+    expect(audit.error).toBeNull();
+    expect(audit.data).toEqual([{ actor_id: admin.id, action: 'verify_organiser' }]);
+  });
+  it('blocks profile and owned activity writes, preserves status detection, and allows reinstatement', async () => {
+    const actor = await userWithRole('suspension-organiser', 'organiser');
+    const { data: activity, error } = await service
+      .from('activities')
+      .insert({
+        organiser_id: actor.id,
+        title: 'Suspension regression',
+        category: 'cooking',
+        location_name: 'CC',
+        starts_at: inHours(24),
+        ends_at: inHours(25),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    await setUserStatus(admin.client, actor.id, 'suspended', 'Regression test');
+    try {
+      expect((await getMyProfile(actor.client)).status).toBe('suspended');
+      expect((await actor.client.from('profiles').select('id').eq('id', resident.id)).data).toEqual(
+        [],
+      );
+      const profile = await actor.client
+        .from('profiles')
+        .update({ display_name: 'Forbidden' })
+        .eq('id', actor.id)
+        .select('id');
+      expect(profile.data ?? []).toEqual([]);
+      const edit = await actor.client
+        .from('activities')
+        .update({ title: 'Forbidden' })
+        .eq('id', activity.id)
+        .select('id');
+      expect(edit.data ?? []).toEqual([]);
+      expect(
+        (await service.from('activities').select('title').eq('id', activity.id).single()).data
+          ?.title,
+      ).toBe('Suspension regression');
+      expect(
+        (await service.from('profiles').select('display_name').eq('id', actor.id).single()).data
+          ?.display_name,
+      ).toBe('suspension-organiser');
+      const upload = await actor.client.storage
+        .from('community-images')
+        .upload(`${actor.id}/suspended.png`, new Uint8Array([137, 80, 78, 71]), {
+          contentType: 'image/png',
+        });
+      expect(upload.error).not.toBeNull();
+    } finally {
+      await setUserStatus(admin.client, actor.id, 'active');
+    }
+    expect((await updateMyProfile(actor.client, { display_name: 'Reinstated' })).display_name).toBe(
+      'Reinstated',
+    );
+    const edit = await actor.client
+      .from('activities')
+      .update({ title: 'Reinstated activity' })
+      .eq('id', activity.id)
+      .select('id');
+    expect(edit.error).toBeNull();
+    expect(edit.data).toHaveLength(1);
+  });
+});
+
 describe('P3 posts and neighbourhood feeds', () => {
   let neighbourhoodId: number;
   beforeAll(async () => {

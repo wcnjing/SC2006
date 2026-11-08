@@ -30,13 +30,16 @@ export const en = {
   'common.close': 'Close',
   'common.retry': 'Retry',
   'organiser.imagesLabel': 'Activity images',
-  'organiser.imagesHint': 'The first image is used on activity cards and the banner. Drag to reorder.',
+  'organiser.imagesHint':
+    'The first image is used on activity cards and the banner. Drag to reorder.',
   'organiser.addImages': 'Add images',
   'organiser.removeImage': 'Remove image',
   'organiser.moveImageLeft': 'Move image left',
   'organiser.moveImageRight': 'Move image right',
-  'organiser.fieldNeighbourhoodRequired': 'Select a neighbourhood so this activity can appear on the map.',
-  'organiser.fieldAddressHint': 'Use a specific Singapore address or postal code. It places this activity on the map.',
+  'organiser.fieldNeighbourhoodRequired':
+    'Select a neighbourhood so this activity can appear on the map.',
+  'organiser.fieldAddressHint':
+    'Use a specific Singapore address or postal code. It places this activity on the map.',
   'organiser.fieldAddressRequired': 'Enter an address so this activity can appear on the map.',
   'detail.activityImages': 'Activity images',
   'detail.previousImage': 'Previous image',
@@ -115,7 +118,8 @@ export const en = {
   'error.generic': 'Something went wrong. Please try again.',
   'error.forbidden': 'Your account type can’t do this.',
   'error.uploadFailed': 'We couldn’t upload your photo. Remove it and save, or try again later.',
-  'error.geocodingFailed': 'We couldn’t find that address. Enter a valid Singapore address and try again.',
+  'error.geocodingFailed':
+    'We couldn’t find that address. Enter a valid Singapore address and try again.',
   'error.confirmEmail': 'Almost there! Check your inbox to confirm your email, then log in.',
   'error.network': 'Can’t reach CommunityLink. Check your connection and try again.',
   'error.activityFull': 'Sorry, this activity just became full.',
@@ -604,6 +608,42 @@ export const en = {
   'admin.removeBody': 'It will be hidden from everyone. The decision is recorded in the audit log.',
   'admin.removedToast': 'Content removed.',
   'admin.dismissedToast': 'Report dismissed.',
+
+  'admin.usersHint': 'Manage account access. Live account changes are recorded in the audit log.',
+  'admin.userSearch': 'Search by name or user ID',
+  'admin.allUsers': 'All',
+  'admin.activeUsers': 'Active',
+  'admin.suspendedUsers': 'Suspended',
+  'admin.userStatus': 'Account status',
+  'admin.noUsers': 'No matching accounts',
+  'admin.suspend': 'Suspend account',
+  'admin.reinstate': 'Reinstate account',
+  'admin.suspendTitle': 'Suspend this account?',
+  'admin.reinstateTitle': 'Reinstate this account?',
+  'admin.suspendBody':
+    '{name} will lose access to protected app features and will be unable to sign in.',
+  'admin.reinstateBody': '{name} will be able to sign in and use the app again.',
+  'admin.suspensionReason': 'Reason for suspension',
+  'admin.statusSaved': 'Account status updated.',
+  'admin.ownAccount': 'You cannot change your own account status.',
+  'admin.userId': 'User ID: {id}',
+  'admin.role.resident': 'Resident',
+  'admin.role.organiser': 'Organiser',
+  'admin.role.admin': 'Administrator',
+  'admin.showMoreUsers': 'Show more accounts',
+  'report.userTitle': 'Report account',
+  'admin.typeUser': 'Account',
+  'admin.reportedUsers': 'Reported accounts',
+  'admin.suspendReportedBody':
+    'Suspend this account and mark the report as actioned? The account will lose access until reinstated.',
+  'admin.accountSuspendedToast': 'Account suspended and report actioned.',
+  'admin.verifyHint':
+    'Approve an active resident as an organiser after reviewing their identity. Organisers can create and manage activities. Existing organisers are already approved.',
+  'admin.approveOrganiser': 'Approve as organiser',
+  'admin.verifyBody':
+    'Approve {name} as an organiser? This grants permission to create and manage activities. They should sign in again to receive their new access.',
+  'admin.organiserApproved':
+    'Organiser approved. The account can sign in again to access organiser tools.',
 
   // Languages (always shown in their own script)
   'lang.en': 'English',

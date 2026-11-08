@@ -4,7 +4,7 @@ import { ApiError, unwrap, type CommunityLinkClient } from './client';
 
 export const REPORT_REASON_MAX_LENGTH = 100;
 export const REPORT_DETAILS_MAX_LENGTH = 1000;
-export type ContentReportTarget = Extract<ReportTarget, 'post' | 'comment' | 'activity'>;
+export type ContentReportTarget = Extract<ReportTarget, 'post' | 'comment' | 'activity' | 'user'>;
 // Reviewer identity is unnecessary on the reporter's history screen.
 export type SubmittedReport = Omit<Report, 'reviewed_by'>;
 export interface SubmitReportInput {
@@ -48,13 +48,15 @@ export async function submitReport(
   client: CommunityLinkClient,
   input: SubmitReportInput,
 ): Promise<SubmittedReport> {
-  if (!['post', 'comment', 'activity'].includes(input.targetType))
-    throw new ApiError('You can report a post, comment or activity here.', 'validation');
+  if (!['post', 'comment', 'activity', 'user'].includes(input.targetType))
+    throw new ApiError('You can report a post, comment, activity or account here.', 'validation');
   validId(input.targetId);
   if (input.requestId !== undefined) validId(input.requestId);
   const invalid = validateReportContent(input.reason, input.details);
   if (invalid) throw new ApiError(invalid, 'validation');
   const reporterId = await requireUserId(client);
+  if (input.targetType === 'user' && input.targetId === reporterId)
+    throw new ApiError('You cannot report your own account.', 'validation');
   const reason = input.reason.trim();
   const details = input.details?.trim() || null;
 
@@ -84,6 +86,16 @@ export async function submitReport(
   if (input.requestId) {
     const existing = await existingReport();
     if (existing) return existing;
+  }
+  if (input.targetType === 'user') {
+    const response = await client
+      .from('profiles')
+      .select('role')
+      .eq('id', input.targetId)
+      .maybeSingle();
+    const target = unwrap(response);
+    if (!target || target.role === 'admin')
+      throw new ApiError('This account cannot be reported.', 'forbidden');
   }
   const result = await client
     .from('reports')

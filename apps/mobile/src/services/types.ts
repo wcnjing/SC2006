@@ -114,6 +114,8 @@ export interface AuthService {
   loginWithSingpass(identity: SingpassIdentity): Promise<{ session: Session; isNew: boolean }>;
   /** Restore a persisted session (null if none or expired). */
   restore(): Promise<Session | null>;
+  /** Recheck server status. Network failures throw; only confirmed suspension returns false. */
+  isAccountActive(): Promise<boolean>;
   logout(): Promise<void>;
 }
 
@@ -125,6 +127,21 @@ export interface ProfileService {
    * is a Storage bucket upload. The mock returns the local URI unchanged.
    */
   uploadAvatar(accountId: string, localUri: string): Promise<string>;
+}
+
+export interface ManagedUser {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: 'resident' | 'organiser' | 'admin';
+  status: 'active' | 'suspended';
+  reason: string | null;
+}
+
+export interface AdminService {
+  verifyOrganiser(id: string): Promise<void>;
+  listUsers(): Promise<ManagedUser[]>;
+  setStatus(id: string, status: ManagedUser['status'], reason?: string): Promise<void>;
 }
 
 /**

@@ -84,6 +84,7 @@ export function createSupabaseAuth(client: CommunityLinkClient): {
       }
     },
 
+    isAccountActive: () => call(async () => (await getMyProfile(client)).status === 'active'),
     logout: () => call(() => signOut(client)),
   };
 

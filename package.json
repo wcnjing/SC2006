@@ -8,11 +8,13 @@
   ],
   "scripts": {
     "mobile": "npm run start --workspace apps/mobile",
+    "web": "npm run web --workspace apps/mobile",
     "web:demo": "npm run web:demo --workspace apps/mobile",
     "mockpass": "npm start --workspace services/mockpass-auth",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:db": "npm run test:db --workspace packages/shared",
+    "test:admin": "node node_modules/vitest/vitest.mjs run apps/mobile/test/admin.test.ts apps/mobile/test/accountStatusCheck.test.ts",
     "db:types": "supabase gen types typescript --linked > packages/shared/src/database.types.ts && prettier --write packages/shared/src/database.types.ts",
     "db:types:local": "supabase gen types typescript --local > packages/shared/src/database.types.ts && prettier --write packages/shared/src/database.types.ts",
     "seed": "node --env-file-if-exists=.env scripts/seed.mjs",

@@ -183,6 +183,27 @@ export async function getModerationReport(
         parentPost: null,
       };
   }
+  if (report.target_type === 'user') {
+    const target = client
+      .from('profiles')
+      .select('id, display_name, avatar_url, created_at, status, suspended_reason')
+      .eq('id', report.target_id);
+    const response = await (signal ? target.abortSignal(signal) : target).maybeSingle();
+    const profile = unwrap(response);
+    if (profile)
+      content = {
+        id: profile.id,
+        type: 'user',
+        authorId: profile.id,
+        author: profile,
+        body: profile.display_name,
+        imageUrl: null,
+        createdAt: profile.created_at,
+        isRemoved: profile.status === 'suspended',
+        removedReason: profile.suspended_reason,
+        parentPost: null,
+      };
+  }
   return { report, content };
 }
 

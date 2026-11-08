@@ -790,6 +790,7 @@ export type Database = {
         Returns: boolean;
       };
       is_organiser: { Args: never; Returns: boolean };
+      verify_organiser: { Args: { target_user: string }; Returns: undefined };
       skip_activity: {
         Args: { target_activity: string };
         Returns: boolean;
