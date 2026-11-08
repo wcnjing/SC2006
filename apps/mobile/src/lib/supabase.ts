@@ -1,51 +1,43 @@
 import 'react-native-url-polyfill/auto';
-import 'expo-sqlite/localStorage/install';
 
-import { createClient } from '@supabase/supabase-js';
 import type { CommunityLinkClient, Database } from '@communitylink/shared';
-import { AppState } from 'react-native';
-import { DEMO_MODE } from './runtime';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
+import { AppState, Platform } from 'react-native';
 
-const supabaseUrl = DEMO_MODE ? 'http://127.0.0.1:1' : process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabasePublishableKey = DEMO_MODE
-  ? 'demo-unused-key'
-  : process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+/**
+ * Supabase client.
+ * Fill in the repository-root .env (copy apps/mobile/.env.example). Without it the app runs on
+ * the in-device mock backend, so the shell still works with no setup.
+ */
+const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+/** Set EXPO_PUBLIC_BACKEND=mock to force the mock even when keys are present. */
+const forceMock = process.env.EXPO_PUBLIC_BACKEND === 'mock';
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error(
-    'Missing EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY. ' +
-      'Copy apps/mobile/.env.example to apps/mobile/.env and fill it in.',
-  );
+export const supabase: CommunityLinkClient | null =
+  url && key && !forceMock
+    ? createClient<Database>(url, key, {
+        auth: {
+          // AsyncStorage needs `window` on web; during a static render there is none.
+          storage:
+            Platform.OS === 'web' && typeof window === 'undefined' ? undefined : AsyncStorage,
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: false,
+        },
+      })
+    : null;
+
+export const usingSupabase = supabase !== null;
+
+if (supabase) {
+  // Only refresh tokens while the app is in the foreground (as in apps/mobile).
+  AppState.addEventListener('change', (state) => {
+    if (state === 'active') supabase.auth.startAutoRefresh();
+    else supabase.auth.stopAutoRefresh();
+  });
 }
 
-export const supabase: CommunityLinkClient = createClient<Database>(
-  supabaseUrl,
-  supabasePublishableKey,
-  {
-    auth: {
-      storage: localStorage,
-      autoRefreshToken: !DEMO_MODE,
-      persistSession: !DEMO_MODE,
-      detectSessionInUrl: false,
-    },
-    ...(DEMO_MODE
-      ? {
-          global: {
-            fetch: async () => {
-              throw new Error('Supabase requests are disabled in demo mode.');
-            },
-          },
-        }
-      : {}),
-  },
-);
-
-// Only refresh tokens while the app is in the foreground.
-AppState.addEventListener('change', (state) => {
-  if (DEMO_MODE) return;
-  if (state === 'active') {
-    supabase.auth.startAutoRefresh();
-  } else {
-    supabase.auth.stopAutoRefresh();
-  }
-});
+/** Xavier's Mockpass bridge (services/mockpass-auth on the `xavier` branch), e.g. http://127.0.0.1:3000 */
+export const mockpassAuthUrl = process.env.EXPO_PUBLIC_MOCKPASS_AUTH_URL ?? null;

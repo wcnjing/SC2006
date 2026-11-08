@@ -5,8 +5,7 @@ SC2006 group project. A community app for Singapore residents to discover local 
 **Stack:** Expo (React Native) + TypeScript, Supabase (Postgres, Auth, row-level security).
 
 ```
-summer-ui-ux/        The CommunityLink app (all screens; see its README to run it)
-apps/mobile/         P1's Expo dev harness
+apps/mobile/         The CommunityLink app (all screens; see its README)
 packages/shared/     Shared TypeScript: DB types, API functions, validation, RBAC
 services/mockpass/   Local Mockpass server
 services/mockpass-auth/ CommunityLink Mockpass authentication bridge
@@ -23,7 +22,7 @@ docs/                API contract and team conventions
    npm install
    ```
 
-2. Create `apps/mobile/.env` from `apps/mobile/.env.example`. The URL and publishable key are pinned in the group chat. Both are safe to use in the app.
+2. Create `.env` in the repository root from `apps/mobile/.env.example`. The URL and publishable key are pinned in the group chat. Both are safe to use in the app.
 
 3. Start the app and open it in Expo Go (scan the QR code) or a simulator:
 
@@ -47,26 +46,12 @@ From the repository root:
 npm run web:demo
 ```
 
-Select **Continue as Yining**, then **Open community feed**. You can create, edit
-and delete posts, switch neighbourhoods and load older posts. Open any post to
-like/unlike it, add comments, and edit or delete your own comments. Switch to
-**Auntie Mei** to check author controls and likes from separate residents.
-No Supabase project or `.env` is needed. The visible demo banner identifies local
-data; posts, comments and likes persist in that browser.
-Use **Report post** / **Report comment** to submit a reason, then **My reports**
-to view your own submissions and status. Reports also persist in that browser.
-Choose **Continue as Demo Admin**, then **Admin moderation** to review reports,
-remove content or dismiss reports, and view the moderation audit log.
-Open **Connections** to find people, send friend requests, manage incoming/sent
-requests, and view friends. Switch between Yining and Auntie Mei to try both sides.
-Open **Messages** or choose **Message** beside a friend to chat. **Block user**
-removes the connection; **Blocked users** lets you unblock. Reconnect before
-messaging again after unblocking.
-**Reset demo data** on the resident-selection screen restores the sample posts.
-
-This uses the same post screens with a local data service. Real database/RLS
-verification still needs Supabase. Normal `npm run mobile` / `npm run web
---workspace apps/mobile` use Supabase unless demo mode is explicitly enabled.
+This starts the app in the browser on its built-in mock backend, so no Supabase
+project or `.env` is needed. Log in with `mrstan@test.com`, `resident@test.com`,
+`organiser@test.com`, `admin@test.com` or `suspended@test.com` (password
+`Password1`; see `apps/mobile/README.md`). Real database/RLS behaviour still
+needs Supabase: normal `npm run mobile` / `npm run web --workspace apps/mobile`
+use Supabase whenever the `.env` keys are set.
 See [P3 posts and feed](docs/p3-posts-feed.md) for details.
 See [P3 reports](docs/p3-reports.md) for reporting APIs, screens and database protections.
 See [P3 admin moderation](docs/p3-moderation.md) for the review and audit workflow.
@@ -79,11 +64,11 @@ Import everything from `@communitylink/shared`. API functions take the Supabase 
 
 ```ts
 import { getMyProfile, updateMyProfile, can, type Activity } from '@communitylink/shared';
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../auth/AuthProvider';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 
-const { profile, signOut } = useAuth(); // current user, inside components
-if (can(profile, 'activity:create')) {
+const { session, hasRole } = useAuth(); // current user, inside components
+if (hasRole('organiser')) {
   /* show the button */
 }
 
@@ -148,7 +133,7 @@ npm run mockpass
 
 The bridge reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` from the root `.env`.
 Set `MOCKPASS_AUTH_URL` there and
-`EXPO_PUBLIC_MOCKPASS_AUTH_URL` in `apps/mobile/.env` to the computer's
+`EXPO_PUBLIC_MOCKPASS_AUTH_URL` in the same `.env` to the computer's
 LAN IPv4 address when testing with Expo Go on a phone. The phone and computer
 must be on the same network.
 

@@ -1,14 +1,9 @@
 # Google Maps integration templates
 
-The repository contains two Expo apps. Each app has its own environment template
-and dynamic Expo config template. The `summer-ui-ux` scripts explicitly load the
-repository root `.env` file (`SC2006/.env`), so you do not need a second
-`summer-ui-ux/.env` file:
+The app in `apps/mobile` reads the Google Maps keys listed in its environment
+template. Its scripts load the repository root `.env` file (`SC2006/.env`):
 
 - `apps/mobile/.env.example`
-- `apps/mobile/app.config.google-maps.example.ts`
-- `summer-ui-ux/.env.example`
-- `summer-ui-ux/app.config.google-maps.example.ts`
 
 ## Setup
 
@@ -20,17 +15,11 @@ repository root `.env` file (`SC2006/.env`), so you do not need a second
 3. Add the relevant variables to the repository root `.env` file and set
    `EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY` for the web demo. The web key must be
    allowed to use Maps Embed API. The
-   `summer-ui-ux` scripts load this root file automatically.
-4. Copy the matching `app.config.google-maps.example.ts` to `app.config.ts`.
-   The dynamic config preserves the existing `app.json` settings and adds the
-   `react-native-maps` config plugin.
-5. Install the native map package from the relevant app directory:
-
-   ```powershell
-   npx expo install react-native-maps
-   ```
-
-6. Use a development build after installing the native package. Expo Go can be
+   app's scripts load this root file automatically.
+4. `apps/mobile/app.config.ts` already adds the `react-native-maps` config
+   plugin when `GOOGLE_MAPS_API_KEY` is set, and `react-native-maps` is already a
+   dependency, so no extra install step is needed.
+5. Use a development build after installing the native package. Expo Go can be
    used for basic testing, but a production/development binary needs the native
    key configured by the template:
 

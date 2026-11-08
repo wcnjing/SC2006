@@ -1,51 +1,94 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
-import { AuthProvider, useAuth } from '../auth/AuthProvider';
-import { InactivityGuard } from '../auth/InactivityGuard';
-import { DevAuthScreen } from '../dev/DevAuthScreen';
-import { DEMO_MODE } from '../lib/runtime';
-import { DemoBanner, DemoWelcomeScreen } from '../demo/DemoScreens';
+import { useEffect } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-function AuthenticatedRoutes() {
-  const { session, loading } = useAuth();
-  if (loading)
-    return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  if (!session) return DEMO_MODE ? <DemoWelcomeScreen /> : <DevAuthScreen />;
-  return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: 'CommunityLink' }} />
-      <Stack.Screen name="activities/[id]" options={{ title: 'Activity details' }} />
-      <Stack.Screen name="community" options={{ title: 'Community' }} />
-      <Stack.Screen name="reports" options={{ title: 'My reports' }} />
-      <Stack.Screen name="connections" options={{ title: 'Connections' }} />
-      <Stack.Screen name="messages/index" options={{ title: 'Messages' }} />
-      <Stack.Screen name="messages/[id]" options={{ title: 'Conversation' }} />
-      <Stack.Screen name="blocked-users" options={{ title: 'Blocked users' }} />
-      <Stack.Screen name="admin/moderation/index" options={{ title: 'Admin moderation' }} />
-      <Stack.Screen name="admin/moderation/[id]" options={{ title: 'Review report' }} />
-      <Stack.Screen name="admin/audit" options={{ title: 'Moderation audit log' }} />
-      <Stack.Screen name="post/create" options={{ title: 'Create post' }} />
-      <Stack.Screen name="post/[id]/index" options={{ title: 'Post' }} />
-      <Stack.Screen name="post/[id]/edit" options={{ title: 'Edit post' }} />
-    </Stack>
-  );
-}
+import { LogoMark } from '@/components/ui';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { SettingsProvider, useSettings } from '@/context/SettingsContext';
+import { colors } from '@/theme/tokens';
 
+/**
+ * Dialog Map 0: Application lifecycle and role dispatch.
+ *
+ *   guest      → (auth): Login, Sign Up, Singpass
+ *   onboarding → Complete Your Profile (new account, no profile yet)
+ *   ready      → (app): 5-tab shell plus all pushed screens; role-gated
+ *                Organiser / Admin areas are checked in their own layouts
+ *
+ * Guards are client-side only. The Supabase row-level policies (P1) are the real access control.
+ */
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <InactivityGuard>
-        <View style={{ flex: 1 }}>
-          {DEMO_MODE && <DemoBanner />}
-          <AuthenticatedRoutes />
-        </View>
-      </InactivityGuard>
-      <StatusBar style="auto" />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <RootStack />
+        </AuthProvider>
+      </SettingsProvider>
+    </SafeAreaProvider>
   );
 }
+
+function RootStack() {
+  const { status, touch } = useAuth();
+  const { ready, reduceMotion } = useSettings();
+
+  // Keyboard use on web also counts as activity for the session timeout.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.addEventListener('keydown', touch);
+    return () => document.removeEventListener('keydown', touch);
+  }, [touch]);
+
+  if (status === 'loading' || !ready) {
+    return (
+      <View style={styles.splash} accessibilityLabel="Loading CommunityLink">
+        <LogoMark size={72} />
+        <ActivityIndicator color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={styles.flex}
+      // Any touch resets the inactivity timer; returning false lets the touch continue as normal.
+      onStartShouldSetResponderCapture={() => {
+        touch();
+        return false;
+      }}
+    >
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+          animation: reduceMotion ? 'none' : 'default',
+        }}
+      >
+        <Stack.Protected guard={status === 'guest'}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+        <Stack.Protected guard={status === 'onboarding'}>
+          <Stack.Screen name="onboarding" />
+        </Stack.Protected>
+        <Stack.Protected guard={status === 'ready'}>
+          <Stack.Screen name="(app)" />
+        </Stack.Protected>
+      </Stack>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  splash: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    backgroundColor: colors.background,
+  },
+});

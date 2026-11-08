@@ -50,9 +50,9 @@ The same table exists in TypeScript as `can(profile, permission)` in `packages/s
 | `signOut(client)`                                  |                                                                                              |
 | `requireUserId(client)`                            | Current user's id, or throws `ApiError('unauthenticated')`.                                  |
 
-In the app, use `useAuth()` from `apps/mobile/src/auth/AuthProvider.tsx`: `{ session, profile, loading, signIn, signUp, signOut, refreshProfile, signedOutReason }`.
+In the app, use `useAuth()` from `apps/mobile/src/context/AuthContext.tsx` (current session, sign-in/out, Singpass login and the 30-minute inactivity timeout).
 
-**Session timeout (FR 1.2):** `<InactivityGuard>` signs the user out after 30 minutes without a touch, including time spent in the background.
+**Session timeout (FR 1.2):** `AuthContext` signs the user out after 30 minutes without a touch, including time spent in the background.
 
 ## Profile (P1) — `packages/shared/src/api/profile.ts`
 

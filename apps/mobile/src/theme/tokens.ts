@@ -22,7 +22,7 @@ export const colors = {
   textMuted: '#475467', // 7.6:1 on white
   textSubtle: '#667085', // 4.8:1 on white (placeholders, captions)
   border: '#D0D5DD',
-  borderStrong: '#98A2B3',
+  borderStrong: '#7D8798', // 3.6:1 on white: input / chip / checkbox outlines (WCAG 1.4.11)
   divider: '#EAECF0',
   surface: '#FFFFFF',
   surfaceMuted: '#F2F4F7', // grey cards / inputs-on-grey
@@ -48,6 +48,9 @@ export const colors = {
   tagArts: { bg: '#FDEAD7', fg: '#932F19' },
   tagAccess: { bg: '#E0F2FE', fg: '#065986' },
   tagNeutral: { bg: '#F2F4F7', fg: '#344054' },
+
+  // Rating stars. Decorative next to the number; 3:1 against white for the shape (WCAG 1.4.11).
+  star: '#B54708',
 
   singpass: '#F4333D',
   overlay: 'rgba(16, 24, 40, 0.5)',

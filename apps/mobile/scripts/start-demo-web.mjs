@@ -1,19 +1,12 @@
+// Starts the web app on the built-in mock backend (no Supabase keys needed).
+// Demo accounts: see src/services/mock. Cross-platform replacement for
+// `EXPO_PUBLIC_BACKEND=mock expo start --web`.
 import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url);
-const child = spawn(
-  process.execPath,
-  [require.resolve('expo/bin/cli'), 'start', '--web', ...process.argv.slice(2)],
-  {
-    stdio: 'inherit',
-    env: { ...process.env, EXPO_PUBLIC_DEMO_MODE: 'true' },
-  },
-);
-child.on('error', (error) => {
-  console.error(error.message);
-  process.exitCode = 1;
+const cli = fileURLToPath(new URL('../../../node_modules/expo/bin/cli', import.meta.url));
+const child = spawn(process.execPath, [cli, 'start', '--web', ...process.argv.slice(2)], {
+  stdio: 'inherit',
+  env: { ...process.env, EXPO_PUBLIC_BACKEND: 'mock' },
 });
-child.on('exit', (code) => {
-  process.exitCode = code ?? 0;
-});
+child.on('exit', (code) => process.exit(code ?? 0));
