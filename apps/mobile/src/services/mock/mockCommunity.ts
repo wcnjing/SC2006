@@ -678,6 +678,7 @@ export const mockCommunity: CommunityService = {
       const isConnected = connected(s, me.id, userId);
       return {
         profile,
+        role: 'resident',
         connected: isConnected,
         blockedByMe: s.blocks.some((b) => b.blocker_id === me.id && b.blocked_id === userId),
         canSend: isConnected,
@@ -703,6 +704,9 @@ export const mockCommunity: CommunityService = {
       s.messages.push(row);
       return row;
     }),
+
+  // Demo data has no organiser <-> resident activity chats.
+  listActivityConversations: () => call(() => []),
 
   listDirectMessages: (peerId) =>
     call((s, me) => ({

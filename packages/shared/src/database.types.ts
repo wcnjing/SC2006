@@ -751,6 +751,7 @@ export type Database = {
           display_name: string;
           avatar_url: string | null;
           neighbourhood_id: number | null;
+          role: Database['public']['Enums']['user_role'];
           connected: boolean;
           blocked_by_me: boolean;
           can_send: boolean;

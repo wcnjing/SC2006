@@ -198,8 +198,10 @@ export default function ActivityDetailsScreen() {
       fullWidth={false}
     />
   );
+  // Residents can message the organiser only while registered for an upcoming activity
+  // (cancelled activities never reach here).
   const messageOrganiserButton =
-    resident && joined && activity.source === 'organiser' && activity.organiser_id ? (
+    resident && joined && !started && activity.source === 'organiser' && activity.organiser_id ? (
       <Button
         label={t('detail.messageOrganiser')}
         icon="chatbubble-outline"

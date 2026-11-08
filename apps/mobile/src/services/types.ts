@@ -217,6 +217,7 @@ export const COMMUNITY_API = [
   'getDirectConversation',
   'sendDirectMessage',
   'listDirectMessages',
+  'listActivityConversations',
   'blockUser',
   'unblockUser',
   'listBlockedUsers',

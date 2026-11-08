@@ -31,7 +31,9 @@ import { colors, spacing } from '@/theme/tokens';
 export default function UserScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const t = useT();
-  const me = useAuth().session?.account.accountId;
+  const { session, hasRole } = useAuth();
+  const me = session?.account.accountId;
+  const iAmResident = hasRole('resident');
   const [status, setStatus] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,7 +41,9 @@ export default function UserScreen() {
   const page = useAsync(async () => {
     const [conversation, connections] = await Promise.all([
       communityService.getDirectConversation(id),
-      communityService.listConnections({ limit: 50 }),
+      iAmResident
+        ? communityService.listConnections({ limit: 50 })
+        : Promise.resolve({ connections: [] }),
     ]);
     const connection = connections.connections.find(
       (c) => c.requester_id === id || c.addressee_id === id,
@@ -64,7 +68,10 @@ export default function UserScreen() {
     );
   }
 
-  const { profile, blockedByMe, connection } = page.data;
+  const { profile, blockedByMe, connection, role, canSend } = page.data;
+  // Friendships are resident <-> resident only; organisers and residents
+  // instead message each other through an upcoming activity.
+  const canBeFriends = iAmResident && role === 'resident';
   const hood = findNeighbourhoodByDbId(profile.neighbourhood_id);
   const relation = relationOf(connection, me);
 
@@ -108,7 +115,7 @@ export default function UserScreen() {
 
       {blockedByMe ? (
         <Banner tone="warning">{t('user.youBlocked')}</Banner>
-      ) : (
+      ) : canBeFriends ? (
         <ConnectionActions
           userId={id}
           name={profile.display_name}
@@ -116,6 +123,14 @@ export default function UserScreen() {
           me={me}
           onDone={done}
         />
+      ) : canSend ? (
+        <Button
+          label={t('user.message')}
+          icon="chatbubble-outline"
+          onPress={() => router.push({ pathname: '/messages/[id]', params: { id } })}
+        />
+      ) : (
+        <AppText color={colors.textMuted}>{t('user.activityContact')}</AppText>
       )}
 
       <Button
