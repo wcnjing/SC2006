@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
@@ -38,17 +40,52 @@ function htmlRedirect(url) {
   return `<!doctype html><meta name="referrer" content="no-referrer"><script>location.replace(${encodedUrl})</script><p>Return to CommunityLink</p><a href=${JSON.stringify(url)}>Continue</a>`;
 }
 
+// Where the app wants the tokens sent after login. The app passes it to /start
+// because it differs per platform (web: http://localhost:8081/..., Expo Go:
+// exp://<LAN-IP>:8081/--/..., native build: communitylink://...). The tokens
+// travel in this URL, so only local addresses ending in mockpass/callback are allowed.
+function isAllowedAppRedirect(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (!/\/?mockpass\/callback$/.test(`${url.host}${url.pathname}`)) return false;
+  if (url.protocol === 'communitylink:' || url.protocol === 'exp:') return true;
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+  const host = url.hostname;
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}
+
 function parseNric(subject) {
   const match = /^s=([^,]+)/.exec(subject);
   if (!match) throw new Error('Mockpass token did not contain an NRIC subject');
   return match[1];
 }
 
-async function exchangeCode(code) {
-  const privateKeyPath = path.resolve(
+// Mockpass's relying-party signing key: from a services/mockpass checkout if
+// there is one, otherwise from the @opengovsg/mockpass npm package.
+function mockpassKeyPath() {
+  const checkout = path.resolve(
     serviceDirectory,
     '../mockpass/static/certs/oidc-v2-rp-secret.json',
   );
+  if (existsSync(checkout)) return checkout;
+  const packageDirectory = path.dirname(
+    createRequire(import.meta.url).resolve('@opengovsg/mockpass/package.json'),
+  );
+  return path.join(packageDirectory, 'static/certs/oidc-v2-rp-secret.json');
+}
+
+async function exchangeCode(code) {
+  const privateKeyPath = mockpassKeyPath();
   const privateJwk = JSON.parse(await fs.readFile(privateKeyPath, 'utf8')).keys.find(
     (key) => key.use === 'sig',
   );
@@ -123,10 +160,22 @@ async function createSupabaseSession(nric, subject) {
 const app = express();
 app.get('/health', (_request, response) => response.json({ ok: true }));
 
-app.get('/auth/mockpass/start', (_request, response) => {
+app.get('/auth/mockpass/start', (request, response) => {
+  const requested = request.query.redirect_uri;
+  if (
+    requested !== undefined &&
+    !(typeof requested === 'string' && isAllowedAppRedirect(requested))
+  ) {
+    response.status(400).send('This app return address is not allowed.');
+    return;
+  }
   const state = createState();
   const nonce = createState();
-  pendingStates.set(state, { nonce, createdAt: Date.now() });
+  pendingStates.set(state, {
+    nonce,
+    createdAt: Date.now(),
+    appRedirect: requested ?? mobileRedirectUri,
+  });
   const url = new URL(`${mockpassUrl}/singpass/v2/auth`);
   url.searchParams.set('client_id', clientId);
   url.searchParams.set('redirect_uri', redirectUri);
@@ -134,7 +183,7 @@ app.get('/auth/mockpass/start', (_request, response) => {
   url.searchParams.set('scope', 'openid');
   url.searchParams.set('state', state);
   url.searchParams.set('nonce', nonce);
-  response.redirect(url);
+  response.redirect(url.toString());
 });
 
 app.get('/auth/mockpass/callback', async (request, response) => {
@@ -159,7 +208,7 @@ app.get('/auth/mockpass/callback', async (request, response) => {
     if (typeof subject !== 'string') throw new Error('Mockpass token has no subject');
 
     const session = await createSupabaseSession(parseNric(subject), subject);
-    const redirect = new URL(mobileRedirectUri);
+    const redirect = new URL(pending.appRedirect);
     redirect.searchParams.set('access_token', session.access_token);
     redirect.searchParams.set('refresh_token', session.refresh_token);
     response.send(htmlRedirect(redirect.toString()));

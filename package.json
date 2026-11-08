@@ -11,6 +11,7 @@
     "web": "npm run web --workspace apps/mobile",
     "web:demo": "npm run web:demo --workspace apps/mobile",
     "mockpass": "npm start --workspace services/mockpass-auth",
+    "mockpass:server": "npm run mockpass --workspace services/mockpass-auth",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:db": "npm run test:db --workspace packages/shared",

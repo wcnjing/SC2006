@@ -3,9 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/server.mjs"
+    "start": "node src/server.mjs",
+    "mockpass": "node src/mockpass-server.mjs"
   },
   "dependencies": {
+    "@opengovsg/mockpass": "4.10.1",
     "@supabase/supabase-js": "^2.117.2",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",

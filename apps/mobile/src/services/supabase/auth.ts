@@ -7,6 +7,7 @@ import {
   type CommunityLinkClient,
 } from '@communitylink/shared';
 import type { Session as AuthSession } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 
 import { mockpassAuthUrl } from '@/lib/supabase';
 import type { ProfileInput, Session } from '@/types/models';
@@ -53,8 +54,15 @@ export function createSupabaseAuth(client: CommunityLinkClient): {
     login: (email, password) =>
       call(async () => sessionFor(await signIn(client, { email, password }))),
 
+    // Tell the bridge where to send the tokens back to. Linking.createURL gives the
+    // right address per platform: http://localhost:8081/mockpass/callback on web,
+    // exp://<LAN-IP>:8081/--/mockpass/callback in Expo Go, communitylink://... in a build.
     singpassStartUrl: () =>
-      mockpassAuthUrl ? `${mockpassAuthUrl.replace(/\/$/, '')}/auth/mockpass/start` : null,
+      mockpassAuthUrl
+        ? `${mockpassAuthUrl.replace(/\/$/, '')}/auth/mockpass/start?redirect_uri=${encodeURIComponent(
+            Linking.createURL('/mockpass/callback'),
+          )}`
+        : null,
 
     completeSingpassRedirect: ({ accessToken, refreshToken }) =>
       call(async () => {
