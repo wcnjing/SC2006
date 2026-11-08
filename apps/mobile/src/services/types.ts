@@ -139,6 +139,7 @@ export interface ManagedUser {
 }
 
 export interface AdminService {
+  verifyOrganiser(id: string): Promise<void>;
   listUsers(): Promise<ManagedUser[]>;
   setStatus(id: string, status: ManagedUser['status'], reason?: string): Promise<void>;
 }

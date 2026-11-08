@@ -623,6 +623,13 @@ export const en = {
   'admin.role.organiser': 'Organiser',
   'admin.role.admin': 'Administrator',
   'admin.showMoreUsers': 'Show more accounts',
+  'admin.verifyHint':
+    'Approve an active resident as an organiser after reviewing their identity. Organisers can create and manage activities. Existing organisers are already approved.',
+  'admin.approveOrganiser': 'Approve as organiser',
+  'admin.verifyBody':
+    'Approve {name} as an organiser? This grants permission to create and manage activities. They should sign in again to receive their new access.',
+  'admin.organiserApproved':
+    'Organiser approved. The account can sign in again to access organiser tools.',
 
   // Languages (always shown in their own script)
   'lang.en': 'English',

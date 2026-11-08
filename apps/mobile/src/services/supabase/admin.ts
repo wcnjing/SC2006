@@ -10,6 +10,11 @@ import { call } from './errors';
 
 export function createSupabaseAdmin(client: CommunityLinkClient): AdminService {
   return {
+    verifyOrganiser: (id) =>
+      call(async () => {
+        const { error } = await client.rpc('verify_organiser', { target_user: id });
+        if (error) throw new ApiError(error.message, error.code);
+      }),
     listUsers: () =>
       call(async () => {
         const actor = await getMyProfile(client);

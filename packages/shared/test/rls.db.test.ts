@@ -302,6 +302,34 @@ describe('social rules', () => {
 });
 
 describe('suspension with an existing Auth session', () => {
+  it('restricts organiser approval to admins, checks eligibility and records the approval', async () => {
+    const candidate = await userWithRole('organiser-candidate', 'resident');
+    expect(
+      (await resident.client.rpc('verify_organiser', { target_user: candidate.id })).error?.code,
+    ).toBe('42501');
+    await setUserStatus(admin.client, candidate.id, 'suspended', 'Approval test');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: candidate.id })).error?.code,
+    ).toBe('42501');
+    await setUserStatus(admin.client, candidate.id, 'active');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: candidate.id })).error,
+    ).toBeNull();
+    expect((await getMyProfile(candidate.client)).role).toBe('organiser');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: candidate.id })).error?.code,
+    ).toBe('42501');
+    expect(
+      (await admin.client.rpc('verify_organiser', { target_user: admin.id })).error?.code,
+    ).toBe('42501');
+    const audit = await service
+      .from('audit_log')
+      .select('actor_id, action')
+      .eq('target_id', candidate.id)
+      .eq('action', 'verify_organiser');
+    expect(audit.error).toBeNull();
+    expect(audit.data).toEqual([{ actor_id: admin.id, action: 'verify_organiser' }]);
+  });
   it('blocks profile and owned activity writes, preserves status detection, and allows reinstatement', async () => {
     const actor = await userWithRole('suspension-organiser', 'organiser');
     const { data: activity, error } = await service

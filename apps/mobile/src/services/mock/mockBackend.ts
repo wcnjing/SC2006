@@ -284,6 +284,18 @@ export const mockProfile: ProfileService = {
 };
 
 export const mockAdmin: AdminService = {
+  async verifyOrganiser(userId) {
+    const actor = await currentMockUser();
+    if (!actor.account.roles.includes('admin') || actor.account.accountId === userId)
+      throw new ServiceError('FORBIDDEN');
+    const db = await load();
+    const row = db.rows.find((r) => r.account.accountId === userId);
+    if (!row) throw new ServiceError('NOT_FOUND');
+    if (row.account.status !== 'active' || !row.account.roles.includes('resident'))
+      throw new ServiceError('FORBIDDEN');
+    row.account.roles = ['organiser'];
+    await save(db);
+  },
   async listUsers() {
     const actor = await currentMockUser();
     if (!actor.account.roles.includes('admin')) throw new ServiceError('FORBIDDEN');

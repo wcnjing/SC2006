@@ -14,6 +14,16 @@ const actor = (role = 'admin', status = 'active') =>
   ({ role, status }) as Awaited<ReturnType<typeof getMyProfile>>;
 
 describe('account administration', () => {
+  it('calls the restricted organiser approval RPC and propagates denial', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ error: null })
+      .mockResolvedValueOnce({ error: { message: 'Denied', code: '42501' } });
+    const service = createSupabaseAdmin({ rpc } as unknown as CommunityLinkClient);
+    await service.verifyOrganiser('resident');
+    expect(rpc).toHaveBeenCalledWith('verify_organiser', { target_user: 'resident' });
+    await expect(service.verifyOrganiser('admin')).rejects.toBeDefined();
+  });
   beforeEach(() => vi.resetAllMocks());
 
   it('rejects residents and suspended administrators before reading the directory', async () => {
