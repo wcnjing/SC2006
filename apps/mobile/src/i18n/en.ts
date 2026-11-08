@@ -29,6 +29,12 @@ export const en = {
   'common.hidePassword': 'Hide password',
   'common.close': 'Close',
   'common.retry': 'Retry',
+  'organiser.imagesLabel': 'Activity images',
+  'organiser.imagesHint': 'The first image is used on activity cards and the banner. Drag to reorder.',
+  'organiser.addImages': 'Add images',
+  'organiser.removeImage': 'Remove image',
+  'organiser.moveImageLeft': 'Move image left',
+  'organiser.moveImageRight': 'Move image right',
 
   // Tabs
   'tab.home': 'Home',

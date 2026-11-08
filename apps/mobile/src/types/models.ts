@@ -89,6 +89,8 @@ export interface Activity {
   external_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Ordered public URLs from the activity-images bucket. */
+  image_urls?: string[];
 }
 
 /** = shared `ActivityRating` (Tables<'activity_ratings'>), plus the reviewer's public name. */

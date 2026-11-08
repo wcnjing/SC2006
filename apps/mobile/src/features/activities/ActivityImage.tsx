@@ -16,6 +16,7 @@ const FALLBACK_BG: Record<string, string> = {
 
 type Props = {
   category: string;
+  uri?: string | null;
   /** Image height; width fills the parent unless `style` sets it. */
   height: number;
   rounded?: boolean;
@@ -28,12 +29,12 @@ type Props = {
  * Falls back to a category-coloured icon tile when there is no image or it
  * fails to load (offline, blocked CDN).
  */
-export function ActivityImage({ category, height, rounded = true, style }: Props) {
+export function ActivityImage({ category, uri, height, rounded = true, style }: Props) {
   const [failed, setFailed] = useState(false);
-  const uri = CATEGORY_IMAGES[category];
+  const sourceUri = uri || CATEGORY_IMAGES[category];
   const frame = [styles.frame, { height }, rounded && styles.rounded, style];
 
-  if (!uri || failed) {
+  if (!sourceUri || failed) {
     const tone = toneForCategory(category);
     return (
       <View
@@ -55,7 +56,7 @@ export function ActivityImage({ category, height, rounded = true, style }: Props
   }
   return (
     <Image
-      source={{ uri }}
+      source={{ uri: sourceUri }}
       style={frame as never}
       resizeMode="cover"
       onError={() => setFailed(true)}

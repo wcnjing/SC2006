@@ -275,7 +275,7 @@ export default function ActivityDetailsScreen() {
         )
       }
     >
-      <ActivityImage category={activity.category} height={220} />
+      <ActivityImage category={activity.category} uri={activity.image_urls?.[0]} height={220} />
 
       <ActivityTags activity={activity} />
 

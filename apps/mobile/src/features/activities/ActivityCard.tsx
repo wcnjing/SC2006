@@ -45,7 +45,12 @@ export function ActivityCard({ activity, distanceKm, reason, size = 'large', foo
       accessibilityLabel={reason ? `${label} ${reason}` : label}
       style={compact && styles.compact}
     >
-      <ActivityImage category={activity.category} height={compact ? 110 : 170} rounded={false} />
+      <ActivityImage
+        category={activity.category}
+        uri={activity.image_urls?.[0]}
+        height={compact ? 110 : 170}
+        rounded={false}
+      />
       <View style={[styles.body, compact && styles.bodyCompact]}>
         <View style={styles.topRow}>
           <Tag

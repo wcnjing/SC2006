@@ -12,6 +12,9 @@ import { useT } from '@/context/SettingsContext';
 import type { TranslationKey } from '@/i18n/en';
 import { spacing } from '@/theme/tokens';
 import type { Activity } from '@/types/models';
+import type { ActivityImageFile } from '@/services/supabase/uploads';
+
+import { ActivityImagePicker } from './ActivityImagePicker';
 
 export type ActivityFormValues = {
   title: string;
@@ -28,6 +31,7 @@ export type ActivityFormValues = {
   cost: string; // dollars, blank = free
   outdoor: boolean;
   access: string[];
+  images: ActivityImageFile[];
 };
 
 const sgParts = (iso: string) => {
@@ -50,6 +54,7 @@ export function toFormValues(a?: Activity): ActivityFormValues {
     cost: a?.cost_cents ? (a.cost_cents / 100).toFixed(2) : '',
     outdoor: a?.is_outdoor ?? false,
     access: a?.accessibility_features ?? [],
+    images: [],
   };
 }
 
@@ -108,6 +113,7 @@ export function ActivityForm({ values, onChange, error }: Props) {
         onChangeText={set('description')}
         multiline
       />
+      <ActivityImagePicker images={values.images} onChange={set('images')} />
       <Select
         label={t('organiser.fieldCategory')}
         value={values.category || null}

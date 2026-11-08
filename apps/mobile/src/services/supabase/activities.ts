@@ -22,14 +22,25 @@ import {
 
 import type { ActivityService } from '../types';
 import { call } from './errors';
+import { listActivityImages } from './uploads';
+
+async function withImages(client: CommunityLinkClient, activity: Awaited<ReturnType<typeof getActivity>>) {
+  if (!activity) return activity;
+  const images = await listActivityImages(activity.organiser_id, activity.id);
+  return { ...activity, image_urls: images.map((image) => image.uri) };
+}
 
 /** ActivityService on P2's @communitylink/shared functions (README "For P2"). */
 export function createSupabaseActivities(client: CommunityLinkClient): ActivityService {
   return {
     getRecommendations: (o) => call(() => getActivityRecommendations(client, o)),
     listActivities: (f) =>
-      call(async () => filterActivities(await listActivities(client), f ?? {})),
-    getActivity: (id) => call(() => getActivity(client, id)),
+      call(async () => {
+        const rows = filterActivities(await listActivities(client), f ?? {});
+        const loaded = await Promise.all(rows.map((activity) => withImages(client, activity)));
+        return loaded.filter((activity): activity is NonNullable<typeof activity> => !!activity);
+      }),
+    getActivity: (id) => call(async () => withImages(client, await getActivity(client, id))),
     getOrganiserName: (a) => call(() => getActivityOrganiserName(client, a)),
     getParticipation: (id) => call(() => getMyActivityParticipation(client, id)),
     save: (id) => call(() => saveActivity(client, id)),

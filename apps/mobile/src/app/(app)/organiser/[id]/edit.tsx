@@ -1,6 +1,6 @@
 import { canManageActivity } from '@communitylink/shared';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import {
@@ -28,6 +28,10 @@ import { useAsync } from '@/lib/useAsync';
 import { activityService, errorMessageKey, errorText } from '@/services';
 import { spacing } from '@/theme/tokens';
 import type { Activity } from '@/types/models';
+import {
+  listActivityImages,
+  saveActivityImages,
+} from '@/services/supabase/uploads';
 
 /**
  * Edit / cancel activity (FR 11.2, UC UpdateActivity / CancelActivity).
@@ -70,16 +74,33 @@ export default function EditActivityScreen() {
       </Screen>
     );
   }
-  return <Editor activity={activity.data} />;
+  return <Editor activity={activity.data} userId={session?.account.accountId ?? null} />;
 }
 
-function Editor({ activity }: { activity: Activity }) {
+function Editor({ activity, userId }: { activity: Activity; userId: string | null }) {
   const t = useT();
   const [values, setValues] = useState<ActivityFormValues>(() => toFormValues(activity));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'save' | 'cancel' | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState('');
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+  useEffect(() => {
+    let active = true;
+    listActivityImages(userId, activity.id)
+      .then((images) => {
+        if (active) {
+          setValues((current) => ({ ...current, images }));
+          setImagesLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (active) setImagesLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activity.id, userId]);
   const editable = activity.status === 'scheduled' && !hasStarted(activity);
 
   const run = async (kind: 'save' | 'cancel', action: () => Promise<unknown>) => {
@@ -108,11 +129,16 @@ function Editor({ activity }: { activity: Activity }) {
             disabled={!!busy}
             onPress={() =>
               run('save', () =>
-                activityService.update(
-                  activity.id,
-                  toActivityInput(values, activity),
-                  activity.updated_at,
-                ),
+                (async () => {
+                  await activityService.update(
+                    activity.id,
+                    toActivityInput(values, activity),
+                    activity.updated_at,
+                  );
+                  if (userId && imagesLoaded) {
+                    await saveActivityImages(userId, activity.id, values.images);
+                  }
+                })(),
               )
             }
           />

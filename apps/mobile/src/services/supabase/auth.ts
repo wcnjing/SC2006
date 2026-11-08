@@ -118,12 +118,15 @@ export function createSupabaseAuth(client: CommunityLinkClient): {
       call(async () => {
         if (/^https?:\/\//.test(localUri)) return localUri; // already uploaded
         try {
-          const blob = await (await fetch(localUri)).blob();
-          const ext = blob.type.split('/')[1] ?? 'jpg';
+          const response = await fetch(localUri);
+          if (!response.ok) throw new Error(`Unable to read image: ${response.status}`);
+          const blob = await response.blob();
+          const contentType = blob.type || 'image/jpeg';
+          const ext = contentType.split('/')[1]?.split(';')[0] ?? 'jpg';
           const path = `${accountId}/${Date.now()}.${ext}`;
           const { error } = await client.storage
             .from('avatars')
-            .upload(path, blob, { contentType: blob.type, upsert: true });
+            .upload(path, blob, { contentType, upsert: true });
           if (error) throw error;
           return client.storage.from('avatars').getPublicUrl(path).data.publicUrl;
         } catch {
