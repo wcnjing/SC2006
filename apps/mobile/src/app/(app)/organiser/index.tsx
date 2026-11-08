@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -30,6 +30,8 @@ const tabOf = (a: Activity): Tab =>
  */
 export default function OrganiserDashboardScreen() {
   const t = useT();
+  // Shown both as the organiser's Dashboard tab (no back button) and as a pushed screen.
+  const inTabs = (useSegments() as readonly string[]).includes('(tabs)');
   const [tab, setTab] = useState<Tab>('upcoming');
   const mine = useAsync(() => activityService.listOrganised());
   const items = (mine.data ?? []).filter((a) => tabOf(a) === tab);
@@ -37,7 +39,7 @@ export default function OrganiserDashboardScreen() {
 
   return (
     <Screen
-      header={<ScreenHeader title={t('organiser.title')} />}
+      header={<ScreenHeader title={t('organiser.title')} noBack={inTabs} />}
       contentStyle={styles.content}
       refreshing={mine.refreshing}
       onRefresh={mine.refresh}

@@ -140,15 +140,6 @@ export default function UserScreen() {
         loading={busy}
         onPress={() => (blockedByMe ? setBlocked(false) : setConfirmBlock(true))}
       />
-      {!blockedByMe && (
-        <Button
-          label={t('user.blockedList')}
-          variant="ghost"
-          size="sm"
-          onPress={() => router.push('/blocked-users')}
-        />
-      )}
-
       <ConfirmDialog
         visible={confirmBlock}
         title={t('user.blockTitle', { name: profile.display_name })}
