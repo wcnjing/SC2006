@@ -12,6 +12,7 @@ import { can as canDo, type Permission } from '@communitylink/shared';
 import { AppState } from 'react-native';
 
 import { readJSON, writeJSON } from '@/lib/storage';
+import { createAccountStatusCheck } from '@/lib/accountStatusCheck';
 import { authService } from '@/services';
 import {
   hasRole,
@@ -88,10 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const endSession = useCallback(async (expired: boolean) => {
-    await authService.logout();
     setSingpassPrefill(null);
     setSessionExpired(expired);
     setSession(null);
+    await authService.logout();
   }, []);
 
   // Restore a persisted session on launch, unless it has already timed out.
@@ -119,6 +120,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const timer = setInterval(check, CHECK_INTERVAL_MS);
     const sub = AppState.addEventListener('change', (s) => s === 'active' && check());
     return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [session, endSession]);
+
+  // Recheck on foreground and every 30 seconds; database policies enforce
+  // suspension immediately, even before this device notices the change.
+  useEffect(() => {
+    if (!session) return;
+    const monitor = createAccountStatusCheck(
+      () => authService.isAccountActive(),
+      () => endSession(false),
+    );
+    const check = monitor.check;
+    void check();
+    const timer = setInterval(() => void check(), CHECK_INTERVAL_MS);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void check();
+    });
+    return () => {
+      monitor.dispose();
       clearInterval(timer);
       sub.remove();
     };

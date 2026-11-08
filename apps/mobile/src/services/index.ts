@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 
 import { mockActivities } from './mock/mockActivities';
-import { mockAuth, mockProfile } from './mock/mockBackend';
+import { mockAdmin, mockAuth, mockProfile } from './mock/mockBackend';
+import { createSupabaseAdmin } from './supabase/admin';
 import { mockCommunity } from './mock/mockCommunity';
 import { createSupabaseActivities } from './supabase/activities';
 import { createSupabaseAuth } from './supabase/auth';
@@ -16,6 +17,7 @@ import type { ActivityService, AuthService, CommunityService, ProfileService } f
  * mock, so the shell works with no setup.
  */
 const real = supabase ? createSupabaseAuth(supabase) : null;
+export const adminService = supabase ? createSupabaseAdmin(supabase) : mockAdmin;
 
 export const authService: AuthService = real?.auth ?? mockAuth;
 export const profileService: ProfileService = real?.profile ?? mockProfile;

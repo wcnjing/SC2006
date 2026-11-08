@@ -8,7 +8,7 @@ import type {
   UserProfile,
 } from '@/types/models';
 
-import { ServiceError, type AuthService, type ProfileService } from '../types';
+import { ServiceError, type AdminService, type AuthService, type ProfileService } from '../types';
 
 /**
  * In-device mock backend. It persists to AsyncStorage/localStorage so
@@ -24,6 +24,7 @@ type Row = {
   password: string | null;
   singpassUinfin: string | null;
   profile: UserProfile | null;
+  suspendedReason?: string | null;
 };
 type DB = { rows: Row[] };
 
@@ -243,6 +244,12 @@ export const mockAuth: AuthService = {
     return { ...toSession(row), token: stored.token };
   },
 
+  async isAccountActive() {
+    const stored = await readJSON<{ accountId: string }>(SESSION_KEY);
+    const row = stored && (await load()).rows.find((r) => r.account.accountId === stored.accountId);
+    return !!row && row.account.status === 'active';
+  },
+
   async logout() {
     await remove(SESSION_KEY);
   },
@@ -251,6 +258,8 @@ export const mockAuth: AuthService = {
 export const mockProfile: ProfileService = {
   async saveProfile(accountId, input: ProfileInput) {
     await delay();
+    const actor = await currentMockUser();
+    if (actor.account.accountId !== accountId) throw new ServiceError('FORBIDDEN');
     const db = await load();
     const row = db.rows.find((r) => r.account.accountId === accountId);
     if (!row) throw new ServiceError('NOT_AUTHENTICATED');
@@ -268,7 +277,35 @@ export const mockProfile: ProfileService = {
 
   async uploadAvatar(_accountId, localUri) {
     await delay();
+    const actor = await currentMockUser();
+    if (actor.account.accountId !== _accountId) throw new ServiceError('FORBIDDEN');
     return localUri;
+  },
+};
+
+export const mockAdmin: AdminService = {
+  async listUsers() {
+    const actor = await currentMockUser();
+    if (!actor.account.roles.includes('admin')) throw new ServiceError('FORBIDDEN');
+    return (await load()).rows.map(({ account, profile, suspendedReason }) => ({
+      id: account.accountId,
+      displayName: profile?.displayName ?? account.email ?? '',
+      avatarUrl: profile?.pictureUrl ?? null,
+      role: account.roles[0],
+      status: account.status,
+      reason: suspendedReason ?? null,
+    }));
+  },
+  async setStatus(userId, status, reason) {
+    const actor = await currentMockUser();
+    if (!actor.account.roles.includes('admin') || actor.account.accountId === userId)
+      throw new ServiceError('FORBIDDEN');
+    const db = await load();
+    const row = db.rows.find((r) => r.account.accountId === userId);
+    if (!row) throw new ServiceError('NOT_FOUND');
+    row.account.status = status;
+    row.suspendedReason = status === 'suspended' ? (reason?.trim() ?? null) : null;
+    await save(db);
   },
 };
 
