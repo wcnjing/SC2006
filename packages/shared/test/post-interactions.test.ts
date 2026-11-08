@@ -107,6 +107,7 @@ describe('comments', () => {
       post_id: postId,
       author_id: userId,
       body: 'Hello',
+      image_url: null,
     });
   });
 

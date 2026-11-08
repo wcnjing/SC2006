@@ -244,22 +244,30 @@ describe('social rules', () => {
     await unblockUser(resident.client, other.id);
   });
 
-  it('only allows DMs between accepted connections', async () => {
-    const dm = { sender_id: resident.id, recipient_id: organiser.id, body: 'hello' };
-    const blocked = await resident.client.from('messages').insert(dm);
+  it('only allows DMs between accepted resident connections', async () => {
+    const [sender, recipient] = await Promise.all([
+      userWithRole('dm-rule-sender', 'resident'),
+      userWithRole('dm-rule-recipient', 'resident'),
+    ]);
+    const dm = { sender_id: sender.id, recipient_id: recipient.id, body: 'hello' };
+    const blocked = await sender.client.from('messages').insert(dm);
     expect(blocked.error?.code).toBe('42501');
     await expect(
-      sendDirectMessage(resident.client, { recipientId: organiser.id, body: dm.body }),
+      sendDirectMessage(sender.client, { recipientId: recipient.id, body: dm.body }),
     ).rejects.toMatchObject({ code: '42501' });
 
-    const request = await sendConnectionRequest(resident.client, organiser.id);
-    await acceptConnectionRequest(organiser.client, connectionRequestRef(request));
+    await expect(sendConnectionRequest(resident.client, organiser.id)).rejects.toMatchObject({
+      code: '42501',
+    });
 
-    const allowed = await sendDirectMessage(resident.client, {
-      recipientId: organiser.id,
+    const request = await sendConnectionRequest(sender.client, recipient.id);
+    await acceptConnectionRequest(recipient.client, connectionRequestRef(request));
+
+    const allowed = await sendDirectMessage(sender.client, {
+      recipientId: recipient.id,
       body: dm.body,
     });
-    expect(allowed.sender_id).toBe(resident.id);
+    expect(allowed.sender_id).toBe(sender.id);
   });
 
   it('only lets participants rate activities that have ended', async () => {
@@ -359,7 +367,12 @@ describe('P3 posts and neighbourhood feeds', () => {
         body: 'Removed',
         is_removed: true,
       },
-      { author_id: resident.id, neighbourhood_id: 1, body: 'Other neighbourhood' },
+      {
+        author_id: resident.id,
+        neighbourhood_id: 1,
+        body: 'Other neighbourhood',
+        is_removed: false,
+      },
     ]);
     if (excluded.error) throw excluded.error;
     const ids: string[] = [];
@@ -1115,7 +1128,7 @@ describe('P3 connections', () => {
     await setUserStatus(admin.client, a.id, 'suspended', 'Connection test');
     try {
       await expect(sendConnectionRequest(a.client, b.id)).rejects.toMatchObject({ code: '42501' });
-      await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: 'P0002' });
+      await expect(sendConnectionRequest(b.client, a.id)).rejects.toMatchObject({ code: '42501' });
     } finally {
       await setUserStatus(admin.client, a.id, 'active');
     }
