@@ -33,6 +33,7 @@ export type ServiceErrorCode =
   /** Logged in, but the role can't do this (P2's APIs are resident-only). */
   | 'FORBIDDEN'
   | 'UPLOAD_FAILED'
+  | 'GEOCODING_FAILED'
   /** Sign-up worked but the Supabase project requires email confirmation first. */
   | 'CONFIRM_EMAIL'
   // Activities (map from P2's ApiError.code: not_found, full / conflict, skip_unavailable, busy, timeout)
@@ -58,6 +59,8 @@ export const errorMessageKey = (e: unknown): TranslationKey => {
       return 'error.forbidden';
     case 'UPLOAD_FAILED':
       return 'error.uploadFailed';
+    case 'GEOCODING_FAILED':
+      return 'error.geocodingFailed';
     case 'CONFIRM_EMAIL':
       return 'error.confirmEmail';
     case 'NETWORK':

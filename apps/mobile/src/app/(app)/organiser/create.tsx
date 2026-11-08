@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useT } from '@/context/SettingsContext';
 import { ActivityForm, toActivityInput, toFormValues } from '@/features/activities/ActivityForm';
 import { activityService, errorText } from '@/services';
+import { geocodeAddress } from '@/services/geocoding';
 import { saveActivityImages } from '@/services/supabase/uploads';
 import { spacing } from '@/theme/tokens';
 
@@ -21,8 +22,14 @@ export default function CreateActivityScreen() {
   const submit = async () => {
     setBusy(true);
     setError(null);
+    if (!values.address.trim()) {
+      setError(t('organiser.fieldAddressRequired'));
+      setBusy(false);
+      return;
+    }
     try {
-      const created = await activityService.create(toActivityInput(values));
+      const coordinates = await geocodeAddress(values.address.trim());
+      const created = await activityService.create(toActivityInput(values, undefined, coordinates));
       if (values.images.length) {
         const userId = session?.account.accountId;
         if (!userId) throw new Error('You must be signed in to upload activity images.');

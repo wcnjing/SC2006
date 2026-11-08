@@ -63,7 +63,11 @@ export function toFormValues(a?: Activity): ActivityFormValues {
  * P2's validateActivityInput checks everything else (future start, end after
  * start, whole-number capacity) and the screens show its message.
  */
-export function toActivityInput(v: ActivityFormValues, existing?: Activity): ActivityInput {
+export function toActivityInput(
+  v: ActivityFormValues,
+  existing?: Activity,
+  coordinates?: { lat: number; lng: number },
+): ActivityInput {
   const hood = findNeighbourhood(v.hood);
   return {
     title: v.title,
@@ -78,8 +82,8 @@ export function toActivityInput(v: ActivityFormValues, existing?: Activity): Act
     is_outdoor: v.outdoor,
     accessibility_features: v.access,
     tags: existing?.tags ?? [],
-    lat: hood?.lat ?? existing?.lat ?? null,
-    lng: hood?.lng ?? existing?.lng ?? null,
+    lat: coordinates?.lat ?? existing?.lat ?? hood?.lat ?? null,
+    lng: coordinates?.lng ?? existing?.lng ?? hood?.lng ?? null,
   };
 }
 
@@ -128,7 +132,7 @@ export function ActivityForm({ values, onChange, error }: Props) {
       />
       <TextField
         label={t('organiser.fieldAddress')}
-        optional
+        hint={t('organiser.fieldAddressHint')}
         value={values.address}
         onChangeText={set('address')}
       />

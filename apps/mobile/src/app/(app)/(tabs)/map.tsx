@@ -1,7 +1,7 @@
 import MapView, { Marker, PROVIDER_GOOGLE, type Region } from 'react-native-maps';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AppHeader } from '@/components/layout/AppHeader';
 import { AppText, ErrorState, LoadingState, Screen } from '@/components/ui';
@@ -32,7 +32,7 @@ export default function MapScreen() {
     setError(null);
     try {
       const rows = await activityService.listActivities(
-        neighbourhood ? { neighbourhoodId: neighbourhood.dbId } : undefined,
+        undefined,
       );
       setActivities(rows.filter((activity) => activity.lat != null && activity.lng != null));
     } catch (reason) {
@@ -40,11 +40,13 @@ export default function MapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [neighbourhood?.dbId]);
+  }, []);
 
-  useEffect(() => {
-    void loadActivities();
-  }, [loadActivities]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadActivities();
+    }, [loadActivities]),
+  );
 
   const region = useMemo<Region>(
     () =>

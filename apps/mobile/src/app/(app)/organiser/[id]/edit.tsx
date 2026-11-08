@@ -25,9 +25,10 @@ import {
 } from '@/features/activities/ActivityForm';
 import { hasStarted } from '@/features/activities/format';
 import { useAsync } from '@/lib/useAsync';
-import { activityService, errorMessageKey, errorText } from '@/services';
+import { activityService, errorMessageKey, errorText, ServiceError } from '@/services';
 import { spacing } from '@/theme/tokens';
 import type { Activity } from '@/types/models';
+import { geocodeAddress } from '@/services/geocoding';
 import {
   listActivityImages,
   saveActivityImages,
@@ -130,9 +131,13 @@ function Editor({ activity, userId }: { activity: Activity; userId: string | nul
             onPress={() =>
               run('save', () =>
                 (async () => {
+                  if (!values.address.trim()) {
+                    throw new ServiceError('GEOCODING_FAILED');
+                  }
+                  const coordinates = await geocodeAddress(values.address.trim());
                   await activityService.update(
                     activity.id,
-                    toActivityInput(values, activity),
+                    toActivityInput(values, activity, coordinates),
                     activity.updated_at,
                   );
                   if (userId && imagesLoaded) {

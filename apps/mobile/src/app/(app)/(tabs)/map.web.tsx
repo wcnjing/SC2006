@@ -1,5 +1,5 @@
 import { importLibrary, setOptions } from '@googlemaps/js-api-loader';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -26,20 +26,20 @@ export default function WebMapScreen() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await activityService.listActivities(
-        neighbourhood ? { neighbourhoodId: neighbourhood.dbId } : undefined,
-      );
+      const rows = await activityService.listActivities();
       setActivities(rows.filter((activity) => activity.lat != null && activity.lng != null));
     } catch (reason) {
       setError(reason);
     } finally {
       setLoading(false);
     }
-  }, [neighbourhood?.dbId]);
+  }, []);
 
-  useEffect(() => {
-    void loadActivities();
-  }, [loadActivities]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadActivities();
+    }, [loadActivities]),
+  );
 
   useEffect(() => {
     if (!apiKey || !mapElement.current || activities.length === 0) return;
