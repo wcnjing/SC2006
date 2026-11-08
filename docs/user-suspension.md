@@ -10,7 +10,7 @@ The screen uses the existing UI kit and `adminService`. With Supabase configured
 the service reads profiles and calls the existing `set_user_status` RPC through
 `setUserStatus`. That function enforces administrator permissions, updates the
 profile, and records the change in the database audit log. Apply migration
-`20261109000000_enforce_account_suspension.sql` before using this feature.
+`20261109000100_enforce_account_suspension.sql` before using this feature.
 
 Authentication rejects suspended accounts when loading their session profile.
 Existing sessions recheck account status every 30 seconds and on foreground,
