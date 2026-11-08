@@ -115,6 +115,8 @@ export interface AuthService {
   /** Restore a persisted session (null if none or expired). */
   restore(): Promise<Session | null>;
   logout(): Promise<void>;
+  /** FR 12.1.3: true once an admin has suspended the signed-in account. */
+  isSuspended(): Promise<boolean>;
 }
 
 export interface ProfileService {
@@ -208,6 +210,8 @@ export const COMMUNITY_API = [
   'getModerationReport',
   'reviewContentReport',
   'listModerationAudit',
+  'listUsers',
+  'setUserStatus',
   'sendConnectionRequest',
   'acceptConnectionRequest',
   'rejectConnectionRequest',

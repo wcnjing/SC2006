@@ -1,6 +1,7 @@
 import { readJSON, remove, writeJSON } from '@/lib/storage';
 import { normaliseEmail } from '@/lib/validation';
 import type {
+  AccountStatus,
   ProfileInput,
   Session,
   SingpassIdentity,
@@ -246,7 +247,22 @@ export const mockAuth: AuthService = {
   async logout() {
     await remove(SESSION_KEY);
   },
+
+  async isSuspended() {
+    const stored = await readJSON<{ accountId: string }>(SESSION_KEY);
+    const row = stored && (await load()).rows.find((r) => r.account.accountId === stored.accountId);
+    return row?.account.status === 'suspended';
+  },
 };
+
+/** Admin suspend / reinstate (P1's set_user_status). The caller checks the admin role. */
+export async function setMockStatus(accountId: string, status: AccountStatus) {
+  const db = await load();
+  const row = db.rows.find((r) => r.account.accountId === accountId);
+  if (!row) throw new ServiceError('NOT_FOUND');
+  row.account.status = status;
+  await save(db);
+}
 
 export const mockProfile: ProfileService = {
   async saveProfile(accountId, input: ProfileInput) {

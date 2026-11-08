@@ -41,6 +41,8 @@ type AuthValue = {
   session: Session | null;
   /** Set when the last logout was caused by inactivity, so Login can explain it. */
   sessionExpired: boolean;
+  /** Set when an admin suspended the account mid-session (FR 12.1.3), so Login can explain it. */
+  suspended: boolean;
   /** Prefill for Complete Profile after a new Singpass sign-up. */
   singpassPrefill: { displayName: string } | null;
   login: (email: string, password: string) => Promise<void>;
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [suspended, setSuspended] = useState(false);
   const [singpassPrefill, setSingpassPrefill] = useState<AuthValue['singpassPrefill']>(null);
   const lastActive = useRef(0); // set by touch() when a session begins
   const lastPersisted = useRef(0);
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const begin = useCallback(
     (s: Session) => {
       setSessionExpired(false);
+      setSuspended(false);
       lastPersisted.current = 0;
       touch();
       setSession(s);
@@ -87,10 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [touch],
   );
 
-  const endSession = useCallback(async (expired: boolean) => {
+  const endSession = useCallback(async (expired: boolean, wasSuspended = false) => {
     await authService.logout();
     setSingpassPrefill(null);
     setSessionExpired(expired);
+    setSuspended(wasSuspended);
     setSession(null);
   }, []);
 
@@ -110,11 +115,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [begin, endSession]);
 
-  // Inactivity watchdog: periodic check plus a check when the app returns to the foreground.
+  // Inactivity + suspension watchdog: periodic check plus a check when the app returns to the foreground.
   useEffect(() => {
     if (!session) return;
-    const check = () => {
+    const check = async () => {
       if (Date.now() - lastActive.current > SESSION_TIMEOUT_MS) endSession(true);
+      else if (await authService.isSuspended()) endSession(false, true);
     };
     const timer = setInterval(check, CHECK_INTERVAL_MS);
     const sub = AppState.addEventListener('change', (s) => s === 'active' && check());
@@ -136,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       session,
       sessionExpired,
+      suspended,
       singpassPrefill,
       touch,
       login: async (email, password) => begin(await authService.login(email, password)),
@@ -160,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       can: (p) =>
         !!session && canDo({ role: session.account.roles[0], status: session.account.status }, p),
     };
-  }, [loading, session, sessionExpired, singpassPrefill, touch, begin, endSession]);
+  }, [loading, session, sessionExpired, suspended, singpassPrefill, touch, begin, endSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

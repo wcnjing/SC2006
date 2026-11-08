@@ -17,7 +17,7 @@ import { colors, radii, spacing } from '@/theme/tokens';
  */
 export default function LoginScreen() {
   const { t } = useSettings();
-  const { login, sessionExpired } = useAuth();
+  const { login, sessionExpired, suspended } = useAuth();
   const params = useLocalSearchParams<{ error?: string }>();
   const passwordRef = useRef<TextInput>(null);
 
@@ -69,6 +69,7 @@ export default function LoginScreen() {
           {t('login.sessionExpired')}
         </Banner>
       )}
+      {suspended && <Banner tone="error">{t('error.suspended')}</Banner>}
       {formError && <Banner tone="error">{t(formError)}</Banner>}
 
       <TextField

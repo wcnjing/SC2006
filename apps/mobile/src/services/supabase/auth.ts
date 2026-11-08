@@ -85,6 +85,13 @@ export function createSupabaseAuth(client: CommunityLinkClient): {
     },
 
     logout: () => call(() => signOut(client)),
+
+    // Offline or signed out reads as "not suspended"; the next successful check catches it.
+    isSuspended: () =>
+      getMyProfile(client).then(
+        (p) => p.status === 'suspended',
+        () => false,
+      ),
   };
 
   const profile: ProfileService = {

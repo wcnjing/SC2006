@@ -1,4 +1,4 @@
-import type { AccountStatus, AuditLogEntry, UserRole } from '../types';
+import type { AccountStatus, AuditLogEntry, Profile, UserRole } from '../types';
 import { unwrap, type CommunityLinkClient } from './client';
 
 // Admin-only. The database rejects these for non-admins (error code 42501).
@@ -18,6 +18,21 @@ export async function setUserStatus(
   reason?: string,
 ): Promise<void> {
   unwrap(await client.rpc('set_user_status', { target_user: userId, new_status: status, reason }));
+}
+
+export type ManagedUser = Pick<
+  Profile,
+  'id' | 'display_name' | 'avatar_url' | 'role' | 'status' | 'suspended_reason'
+>;
+
+/** Every account for the Manage users screen. RLS returns all profiles only to admins. */
+export async function listUsers(client: CommunityLinkClient): Promise<ManagedUser[]> {
+  return unwrap(
+    await client
+      .from('profiles')
+      .select('id, display_name, avatar_url, role, status, suspended_reason')
+      .order('display_name'),
+  );
 }
 
 export async function listAuditLog(

@@ -24,7 +24,7 @@ import { readJSON, writeJSON } from '@/lib/storage';
 
 import { ServiceError, type CommunityService } from '../types';
 import { cancelMockActivity, findMockActivity, mockOrganiserName } from './mockActivities';
-import { currentMockUser, MOCK_IDS, mockPeople, mockUuid } from './mockBackend';
+import { currentMockUser, MOCK_IDS, mockPeople, mockUuid, setMockStatus } from './mockBackend';
 
 /**
  * In-device stand-in for P3's community API (@communitylink/shared posts,
@@ -584,6 +584,26 @@ export const mockCommunity: CommunityService = {
       requireAdmin(me);
       return { entries: [...s.audit].sort((a, b) => b.id - a.id), nextCursor: null };
     }),
+
+  // shortcut: the mock keeps no suspended_reason; the real set_user_status stores it.
+  listUsers: async () => {
+    const { account } = await currentMockUser();
+    if (!can({ role: account.roles[0], status: account.status }, 'user:suspend'))
+      throw new ServiceError('FORBIDDEN');
+    return (await mockPeople())
+      .map((p) => ({ ...p, suspended_reason: null }))
+      .sort((a, b) => a.display_name.localeCompare(b.display_name));
+  },
+
+  setUserStatus: async (userId, status) => {
+    const { account } = await currentMockUser();
+    if (
+      !can({ role: account.roles[0], status: account.status }, 'user:suspend') ||
+      userId === account.accountId
+    )
+      throw new ServiceError('FORBIDDEN');
+    await setMockStatus(userId, status);
+  },
 
   sendConnectionRequest: (targetUserId) =>
     call((s, me) => {
