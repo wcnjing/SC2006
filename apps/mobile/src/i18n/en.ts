@@ -35,6 +35,11 @@ export const en = {
   'organiser.removeImage': 'Remove image',
   'organiser.moveImageLeft': 'Move image left',
   'organiser.moveImageRight': 'Move image right',
+  'detail.activityImages': 'Activity images',
+  'detail.previousImage': 'Previous image',
+  'detail.nextImage': 'Next image',
+  'detail.imagePosition': 'Image {current} of {total}',
+  'detail.openImage': 'Expand activity image',
 
   // Tabs
   'tab.home': 'Home',

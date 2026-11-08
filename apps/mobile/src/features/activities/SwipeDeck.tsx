@@ -139,7 +139,12 @@ export function SwipeDeck({ cards, distanceFor, onDecide, onOpen, busy, ref }: P
         {/* Next card peeks out underneath, so the user can see there is more. */}
         {next && (
           <View style={[styles.card, styles.under]} importantForAccessibility="no-hide-descendants">
-            <ActivityImage category={next.category} height={DECK_IMAGE_HEIGHT} rounded={false} />
+            <ActivityImage
+              category={next.category}
+              uri={next.image_urls?.[0]}
+              height={DECK_IMAGE_HEIGHT}
+              rounded={false}
+            />
           </View>
         )}
         <Animated.View
@@ -163,7 +168,12 @@ export function SwipeDeck({ cards, distanceFor, onDecide, onOpen, busy, ref }: P
           onAccessibilityAction={onA11yAction}
         >
           <View>
-            <ActivityImage category={current.category} height={DECK_IMAGE_HEIGHT} rounded={false} />
+            <ActivityImage
+              category={current.category}
+              uri={current.image_urls?.[0]}
+              height={DECK_IMAGE_HEIGHT}
+              rounded={false}
+            />
             <Animated.View style={[styles.stamp, styles.stampSave, { opacity: saveHint }]}>
               <AppText variant="h2" color={colors.success}>
                 {t('discover.swipeHintSave')}

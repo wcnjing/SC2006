@@ -22,7 +22,7 @@ import {
 import { findNeighbourhood } from '@/config/catalog';
 import { useAuth } from '@/context/AuthContext';
 import { useSettings } from '@/context/SettingsContext';
-import { ActivityImage } from '@/features/activities/ActivityImage';
+import { ActivityGallery } from '@/features/activities/ActivityGallery';
 import { ActivityTags } from '@/features/activities/ActivityTags';
 import {
   categoryLabel,
@@ -275,7 +275,7 @@ export default function ActivityDetailsScreen() {
         )
       }
     >
-      <ActivityImage category={activity.category} uri={activity.image_urls?.[0]} height={220} />
+      <ActivityGallery activity={activity} />
 
       <ActivityTags activity={activity} />
 

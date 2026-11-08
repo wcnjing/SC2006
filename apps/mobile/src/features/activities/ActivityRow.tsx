@@ -31,7 +31,12 @@ export function ActivityRow({ activity, distanceKm, badges, actions }: Props) {
   const distance = formatDistance(t, distanceKm);
   return (
     <View style={styles.row}>
-      <ActivityImage category={activity.category} height={104} style={styles.image} />
+      <ActivityImage
+        category={activity.category}
+        uri={activity.image_urls?.[0]}
+        height={104}
+        style={styles.image}
+      />
       <View style={styles.body}>
         <AppText variant="label" numberOfLines={2} accessibilityRole="header">
           {activity.title}
