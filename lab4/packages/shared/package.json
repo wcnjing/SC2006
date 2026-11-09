@@ -1,0 +1,21 @@
+{
+  "name": "@communitylink/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude 'test/**/*.db.test.ts'",
+    "test:db": "vitest run test/rls.db.test.ts"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.58.0",
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.4",
+    "@types/node": "^22.0.0"
+  }
+}
