@@ -64,7 +64,11 @@ export function ActivityImagePicker({ images, onChange }: Props) {
         />
       </View>
       {images.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.list}
+        >
           {images.map((image, index) => {
             const translateX = new Animated.Value(0);
             const responder = PanResponder.create({
@@ -140,7 +144,12 @@ export function ActivityImagePicker({ images, onChange }: Props) {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.sm },
-  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
   headingText: { flex: 1, gap: spacing.xs },
   list: { gap: spacing.sm, paddingVertical: spacing.xs },
   item: { width: CELL_WIDTH, height: CELL_WIDTH, borderRadius: radii.md, overflow: 'hidden' },

@@ -724,8 +724,10 @@ describe('P3 comments and likes', () => {
       await expect(deleteComment(other.client, comment.id)).rejects.toMatchObject({
         code: 'not_found',
       });
+      // Suspended accounts can no longer read posts (suspension_read_guard), so
+      // the like call stops at the post lookup.
       await expect(setPostLiked(other.client, post.id, false)).rejects.toMatchObject({
-        code: '42501',
+        code: 'not_found',
       });
     } finally {
       await setUserStatus(admin.client, other.id, 'active');

@@ -103,7 +103,10 @@ export async function saveActivityImages(
     .map((path, index) => ({ path, index }))
     .filter(
       ({ path, index }) =>
-        !path.split('/').pop()?.startsWith(`${String(index).padStart(4, '0')}-`),
+        !path
+          .split('/')
+          .pop()
+          ?.startsWith(`${String(index).padStart(4, '0')}-`),
     );
   for (const [moveIndex, move] of moves.entries()) {
     const temporary = `${move.path}.reordering-${moveIndex}`;
