@@ -5,3 +5,6 @@ apps/mobile/ios
 apps/mobile/android
 package-lock.json
 *.sql
+
+# Lab 4 snapshot (frozen copy of main)
+lab4
