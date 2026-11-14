@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail-with-body --silent --show-error \
-            --request PATCH \
+            --request POST \
             --header "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             --header 'Content-Type: application/json' \
             --data "$(jq -nc --arg token "$ONEMAP_TOKEN" \
