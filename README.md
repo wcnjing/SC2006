@@ -1,36 +1,45 @@
 # CommunityLink
 
-SC2006 group project. A community app for Singapore residents to discover local activities, join them, and connect with neighbours.
+SC2006 Software Engineering. A cross-platform mobile app (Expo + Supabase) that helps Singapore residents find local activities, join them, and connect with their neighbours.
+Repository: https://github.com/wcnjing/SC2006
 
-**Stack:** Expo (React Native) + TypeScript, Supabase (Postgres, Auth, row-level security).
+## Subsystems
 
-```
-apps/mobile/         The CommunityLink app (all screens; see its README)
-packages/shared/     Shared TypeScript: DB types, API functions, validation, RBAC
-services/mockpass/   Local Mockpass server
-services/mockpass-auth/ CommunityLink Mockpass authentication bridge
-supabase/migrations/ Database schema + RLS policies (source of truth for the DB)
-scripts/seed.mjs     Test accounts, activities, posts
-docs/                API contract and team conventions
-```
+`main` holds the integrated app: every subsystem runs behind one UI kit and one shared API package.
 
-## Getting started (everyone)
+| Subsystem                    | Features                                                                                                 | Notes                                                                                                                                                                                                                                                                    |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1: Accounts and platform    | Email/password auth, profiles, roles (RBAC), suspension, audit log, schema, RLS, CI                      | [API contract](docs/api.md), [user suspension](docs/user-suspension.md)                                                                                                                                                                                                  |
+| P2: Activities               | Browse/search/filter, swipe discovery, recommendations, save/join, ratings, organiser create/edit/cancel | [filters](docs/p2-activity-filters.md), [discovery](docs/p2-swipe-discovery.md), [recommendations](docs/p2-recommendations.md), [management](docs/p2-activity-management.md), [ratings](docs/p2-activity-ratings.md), [my activities](docs/p2-resident-my-activities.md) |
+| P3: Community and moderation | Neighbourhood feed, posts/comments/likes, friends, DMs, blocking, reports, admin moderation              | [posts](docs/p3-posts-feed.md), [connections](docs/p3-connections.md), [DMs and blocking](docs/p3-messaging-blocking.md), [reports](docs/p3-reports.md), [moderation](docs/p3-moderation.md)                                                                             |
+| Singpass (Mockpass)          | Singpass login through local Mockpass, Singpass-verified profiles, organiser verification                | [organiser verification](docs/organiser-verification.md)                                                                                                                                                                                                                 |
+| Maps and location            | Map tab, geocoding, OneMap planning areas, weather                                                       | [Google Maps](docs/google-maps-integration.md)                                                                                                                                                                                                                           |
 
-1. Install Node 22+ and clone the repo, then install dependencies:
+## Build and run
+
+Requires **Node 22 or later**. Run everything from the repository root.
+
+The app runs against our hosted Supabase project, so there is no need for a local database or Docker
+
+1. Install dependencies:
 
    ```bash
    npm install
    ```
 
-2. Create `.env` in the repository root from `apps/mobile/.env.example`. The URL and publishable key are pinned in the group chat. Both are safe to use in the app.
+2. Create a `.env` file in the repository root with the hosted project's values (see [Environment variables](#environment-variables)).
 
-3. Start the app and open it in Expo Go (scan the QR code) or a simulator:
+3. Start each of these in its own terminal:
 
    ```bash
-   npm run mobile
+   npm run mockpass:server  # 1. Mockpass Singpass emulator on :5156
+   npm run mockpass         # 2. CommunityLink Mockpass bridge on :3000
+   npm run mobile           # 3. Expo dev server: scan the QR code with Expo Go, or press w for web
    ```
 
-4. Log in with a test account (password in the group chat):
+   To open the app straight in the browser, use `npm run web` instead of `npm run mobile`.
+
+4. Log in with one of the test accounts on the hosted project, or tap **Log in with Singpass** to go through Mockpass.
 
    | Role      | Email                                                           |
    | --------- | --------------------------------------------------------------- |
@@ -38,106 +47,127 @@ docs/                API contract and team conventions
    | organiser | `organiser@test.com`, `organiser2@test.com`                     |
    | resident  | `resident@test.com`, `resident2@test.com`, `resident3@test.com` |
 
-## Try posts in the browser without Supabase
+Otherwise, you can register/login normally with your own credentials.
 
-From the repository root:
+To test on a phone with Expo Go, set the Mockpass bridge URLs to the computer's LAN IP instead of `localhost`. The phone and the computer must be on the same network.
+
+### Environment variables
+
+| Variable                                                   | Used by      | Purpose                                                                        |
+| ---------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------ |
+| `EXPO_PUBLIC_SUPABASE_URL`                                 | app          | Supabase project URL                                                           |
+| `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                     | app          | Publishable key (safe in the client)                                           |
+| `EXPO_PUBLIC_MOCKPASS_AUTH_URL`                            | app          | Mockpass bridge URL                                                            |
+| `EXPO_PUBLIC_GOOGLE_MAPS_WEB_API_KEY`                      | app (web)    | Map tab and geocoding in the browser                                           |
+| `GOOGLE_MAPS_API_KEY`                                      | app (native) | Native builds only                                                             |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY`                      | seed, bridge | Server-side access. **Please contact @Puniabor to get the secret key**    |
+| `MOCKPASS_URL`, `MOCKPASS_AUTH_URL`, `MOBILE_REDIRECT_URI` | bridge       | See [services/mockpass-auth/.env.example](services/mockpass-auth/.env.example) |
+
+## System design
+
+### Architecture
+
+```
+┌──────────────────────────┐      ┌─────────────────────────────┐
+│ apps/mobile (Expo)       │      │ services/mockpass-auth      │
+│  screens  →  services/   │─────▶│  Express bridge ⇄ Mockpass  │
+│            ├ supabase/   │      └──────────────┬──────────────┘
+│            └ mock/       │                     │ secret key
+└────────────┬─────────────┘                     ▼
+             │ @communitylink/shared   ┌─────────────────────────┐
+             └────────────────────────▶│ Supabase                │
+               (typed API, RBAC,       │  Postgres + RLS, Auth,  │
+                validation)            │  Storage, Realtime,     │
+                                       │  Edge Functions         │
+                                       └─────────────────────────┘
+```
+
+- **Boundary/control/entity:** screens in `apps/mobile/src/app` are boundaries. They call a backend-agnostic service interface (`src/services/types.ts`), which has two implementations: Supabase and an in-memory mock. Entity types and business rules live in `packages/shared`.
+- **The database is the API.** Clients query tables directly through the typed client, and row-level security enforces who may read or write each row. Rules that must not be bypassed, such as capacity-checked joins, moderation and suspension, run in Postgres functions called with `supabase.rpc(...)`.
+- **Secrets stay server-side.** The app holds only the publishable key. Only the Mockpass bridge and the seed script use the Supabase secret key.
+
+### Roles
+
+| Role      | Can                                                                                                            |
+| --------- | -------------------------------------------------------------------------------------------------------------- |
+| Resident  | Discover, save, join, skip and rate activities; post and comment; add friends; DM; block; report               |
+| Organiser | Everything a resident can, plus create, edit and cancel their own activities, and message registered residents |
+| Admin     | Review reports, remove content, suspend users, verify organisers; every action is written to the audit log     |
+
+### Data model
+
+The core tables are `profiles`, `neighbourhoods`, `activities`, `activity_participants`, `activity_ratings`, `posts`, `comments`, `post_likes`, `connections`, `messages`, `blocks`, `reports`, `notifications` and `audit_log`. The schema lives in [supabase/migrations/](supabase/migrations/) (37 migrations, applied in order). The generated types are in `packages/shared/src/database.types.ts`, and per-table rules are in [docs/api.md](docs/api.md).
+
+### External services
+
+| Service                 | Use                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| Singpass (via Mockpass) | Identity login and verified profiles                                                 |
+| Google Maps             | Map tab and geocoding                                                                |
+| OneMap                  | Planning-area data, synced monthly by an Edge Function; token refreshed every 2 days |
+
+### Internationalisation
+
+The UI is available in English, Chinese, Malay and Tamil (`apps/mobile/src/i18n`).
+
+## Verification
 
 ```bash
-npm run web:demo
+npm run typecheck     # TypeScript across all workspaces
+npm test              # shared package unit tests
+npm run test:admin    # app admin/suspension tests
+npm run test:db       # RLS integration tests (needs `npx supabase start`)
+npm run format:check  # Prettier
 ```
 
-This starts the app in the browser on its built-in mock backend, so no Supabase
-project or `.env` is needed. Log in with `mrstan@test.com`, `resident@test.com`,
-`organiser@test.com`, `admin@test.com` or `suspended@test.com` (password
-`Password1`; see `apps/mobile/README.md`). Real database/RLS behaviour still
-needs Supabase: normal `npm run mobile` / `npm run web --workspace apps/mobile`
-use Supabase whenever the `.env` keys are set.
-See [P3 posts and feed](docs/p3-posts-feed.md) for details.
-See [P3 reports](docs/p3-reports.md) for reporting APIs, screens and database protections.
-See [P3 admin moderation](docs/p3-moderation.md) for the review and audit workflow.
-See [P3 connections](docs/p3-connections.md) for friend requests and database rules.
-See [P3 DMs and blocking](docs/p3-messaging-blocking.md) for private messages and block controls.
+| Suite                                                                                                       | Files / tests |
+| ----------------------------------------------------------------------------------------------------------- | ------------- |
+| Accounts: session, RBAC, validation                                                                         | 3 / 11        |
+| Activities: listing, filters, discovery, recommendations, participation, my activities, management, ratings | 8 / 275       |
+| P2 migration readiness                                                                                      | 1 / 25        |
+| Community: posts, interactions, connections, messaging                                                      | 4 / 44        |
+| Moderation: reports, moderation                                                                             | 2 / 25        |
+| App: admin, account-status check                                                                            | 2 / 6         |
+| Database RLS integration (`rls.db.test.ts`)                                                                 | 1 / 51        |
 
-## Using the shared package
+All 386 unit tests passed locally on 2026-11-15. The RLS suite runs in CI against a fresh local Supabase stack. [CI](.github/workflows/ci.yml) runs on every pull request and every push to `main`. It checks formatting, typechecks, runs the unit tests, applies every migration from scratch and then runs the RLS tests, so a broken migration fails before it reaches the shared project.
 
-Import everything from `@communitylink/shared`. API functions take the Supabase client as their first argument:
+## Design and documentation evidence
 
-```ts
-import { getMyProfile, updateMyProfile, can, type Activity } from '@communitylink/shared';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/context/AuthContext';
+- [API contract: tables, role permissions, RPC functions](docs/api.md)
+- [Local start guide](docs/start.md) and [Supabase CLI setup](docs/supabaseCLI.md)
+- [App shell README: screens, demo data, feature map](apps/mobile/README.md)
+- P2 review records: [completion audit](docs/p2-completion-audit.md), [database readiness](docs/p2-database-readiness.md), [UI refresh](docs/p2-ui-refresh.md), [save/join proposal](docs/proposals/p2-save-join.md)
+- Safety features: [account reporting](docs/account-reporting.md), [user suspension](docs/user-suspension.md), [organiser verification](docs/organiser-verification.md)
+- <!-- TODO: link use-case model, class/sequence diagrams and lab reports when added -->
 
-const { session, hasRole } = useAuth(); // current user, inside components
-if (hasRole('organiser')) {
-  /* show the button */
-}
+## Development workflow
 
-const { data, error } = await supabase.from('activities').select('*'); // fully typed
-```
-
-See [docs/api.md](docs/api.md) for the tables, what each role can do, and the RPC functions.
-
-## Database changes
-
-The shared Supabase project is managed by **P1**. To change the schema:
-
-1. Create a new migration file:
-
-   ```bash
-   supabase migration new add_something
-   ```
-
-2. Write the SQL. **Never edit a migration that is already on `main`.** Add a new one instead.
-3. Enable RLS and add policies for any new table. CI fails if the migration doesn't apply.
-4. Open a PR. After it merges, P1 runs `supabase db push` and `npm run db:types`, then commits the updated types.
-
-Optional local sandbox (needs Docker): `supabase start`, then `supabase db reset` reapplies all migrations and `npm run test:db` runs the RLS tests.
-
-## Scripts
-
-| Command             | What it does                                               |
-| ------------------- | ---------------------------------------------------------- |
-| `npm run mobile`    | Start the Expo dev server                                  |
-| `npm run typecheck` | TypeScript across all packages                             |
-| `npm test`          | Unit tests                                                 |
-| `npm run test:db`   | Auth/RBAC/RLS integration tests (local Supabase only)      |
-| `npm run seed`      | Seed test data into the project in `.env` (safe to re-run) |
-| `npm run mockpass`  | Start the local Mockpass authentication bridge             |
-| `npm run db:types`  | Regenerate `database.types.ts` from the linked project     |
-| `npm run format`    | Prettier                                                   |
-
-## Team workflow
-
-- Branch from `main`: `feat/<area>-<thing>`, e.g. `feat/discovery-search`.
-- Small PRs, merged to `main` every 2–3 days. Don't save everything for Week 10.
+- Branch from `main` as `feat/<area>-<thing>`. Keep PRs small and link the functional requirement (for example FR 3.2) using the [PR template](.github/pull_request_template.md).
 - CI must pass, and one teammate must approve.
-- Never commit `.env` files, the database password, or the **secret** key.
+- Schema changes always go in a **new** migration with RLS policies. Never edit a migration that is already on `main`. After the PR merges, P1 runs `supabase db push` and `npm run db:types`.
+- Never commit `.env`, the database password or the Supabase secret key.
 
-## Mockpass login (local development)
+## Repository layout
 
-Mockpass runs separately from the Expo app. Start it with the login page and
-direct ID tokens enabled:
-
-```powershell
-cd services/mockpass
-$env:SHOW_LOGIN_PAGE = "true"
-$env:SINGPASS_CLIENT_PROFILE = "direct"
-npm start
+```
+apps/mobile/              Expo app: screens, UI kit, Supabase and mock backends
+packages/shared/          Shared TypeScript: DB types, API functions, validation, RBAC, tests
+services/mockpass-auth/   Mockpass launcher and CommunityLink authentication bridge
+supabase/migrations/      Schema and RLS policies (source of truth for the database)
+supabase/functions/       Edge Functions (OneMap planning-area sync)
+scripts/seed.mjs          Test data seeding
+docs/                     API contract, feature notes and setup guides
 ```
 
-In another terminal, start the CommunityLink bridge:
+## Team and submission
 
-```powershell
-npm run mockpass
-```
+<!-- TODO: fill in names and roles -->
 
-The bridge reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` from the root `.env`.
-Set `MOCKPASS_AUTH_URL` there and
-`EXPO_PUBLIC_MOCKPASS_AUTH_URL` in the same `.env` to the computer's
-LAN IPv4 address when testing with Expo Go on a phone. The phone and computer
-must be on the same network.
-
-The mobile login screen then provides **Log in with Mockpass**. The bridge
-handles the Mockpass token exchange and creates or reuses a local Supabase
-account whose profile is marked as Singpass-verified. Never expose the
-Supabase secret key or Mockpass signing keys to the mobile app.
+| Member             | Role                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| Ng Wen Jing        | P1: accounts, auth, profiles, database schema/RLS, CI                                |
+| Shyanne Tan Yan Ru | P2: activities, discovery, recommendations, ratings, organiser tools                 |
+| Yuan Yining        | P3: community feed, connections, messaging, reports, moderation                      |
+| Xavier Kee         | P4: Singpass/Mockpass integration, OneMap API Integration, Notification Engine       |
+| Summer Sinfuego    | P5: Design system, UI/UX screens, accessibility, button alternatives to gestures, QA |
