@@ -64,19 +64,46 @@ To use Expo Go on a phone, connect the phone to the same Wi-Fi as your computer.
 
 ## How it works
 
-```
-┌──────────────────────────┐      ┌─────────────────────────────┐
-│ apps/mobile (Expo)       │      │ services/mockpass-auth      │
-│  screens  →  services/   │─────▶│  Express bridge ⇄ Mockpass  │
-│            ├ supabase/   │      └──────────────┬──────────────┘
-│            └ mock/       │                     │ secret key
-└────────────┬─────────────┘                     ▼
-             │ @communitylink/shared   ┌─────────────────────────┐
-             └────────────────────────▶│ Supabase                │
-               (typed API, RBAC,       │  Postgres + RLS, Auth,  │
-                validation)            │  Storage, Realtime,     │
-                                       │  Edge Functions         │
-                                       └─────────────────────────┘
+```mermaid
+flowchart LR
+    user(["👤 User<br/>Expo Go · browser"])
+
+    subgraph app["📱 apps/mobile (Expo)"]
+        direction TB
+        screens["Screens<br/><i>src/app</i>"]
+        services["Service interface<br/><i>src/services/types.ts</i>"]
+        mock["In-memory mock<br/><i>used while building</i>"]
+        screens --> services
+        services -.-> mock
+    end
+
+    shared["📦 @communitylink/shared<br/>typed API · validation · role checks"]
+
+    subgraph auth["🔐 services/mockpass-auth"]
+        direction TB
+        bridge["Login bridge<br/><i>Express</i>"]
+        mockpass["Mockpass<br/><i>fake Singpass</i>"]
+        bridge <--> mockpass
+    end
+
+    subgraph supa["☁️ Supabase (hosted)"]
+        direction TB
+        db[("Postgres<br/>+ row-level security")]
+        sauth["Auth"]
+        storage["Storage · Realtime"]
+        edge["Edge Function<br/><i>OneMap sync</i>"]
+    end
+
+    onemap["🗺️ OneMap"]
+    gmaps["🗺️ Google Maps"]
+
+    user --> screens
+    services --> shared
+    shared -- "publishable key" --> db
+    screens -- "Log in with Singpass" --> bridge
+    bridge -- "secret key" --> sauth
+    edge --> onemap
+    screens --> gmaps
 ```
 
 The screens in `apps/mobile/src/app` are the boundary classes. They don't talk to Supabase directly. Instead, they call a service interface (`src/services/types.ts`). That interface has two implementations, one for Supabase and an in-memory mock we used while building the screens. The shared types, validation and role checks live in `packages/shared`, so the app and the tests use the same code.
