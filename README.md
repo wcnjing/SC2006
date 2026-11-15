@@ -8,7 +8,7 @@ Repo: https://github.com/wcnjing/SC2006
 
 ## What's in the app
 
-CommunityLink currently contains these features: 
+CommunityLink currently contains these features:
 
 - **Accounts (P1):** sign-up and login, profiles, the three user roles (resident, organiser, admin), account suspension and an audit log of admin actions. P1 also set up the database schema, the row-level security rules and CI.
 - **Activities (P2):** browsing, searching and filtering activities, a swipe deck for discovering new ones, personalised recommendations, saving and joining, and rating an activity after attending. Organisers can create, edit and cancel their own activities.
@@ -20,7 +20,7 @@ The app also has English, Chinese, Malay and Tamil translations.
 
 ## Running the application
 
-### **Node 22 or newer** is required. 
+### **Node 22 or newer** is required.
 
 Run every command from the repo root.
 
