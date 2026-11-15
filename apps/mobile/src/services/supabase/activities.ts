@@ -36,7 +36,19 @@ async function withImages(
 /** ActivityService on P2's @communitylink/shared functions (README "For P2"). */
 export function createSupabaseActivities(client: CommunityLinkClient): ActivityService {
   return {
-    getRecommendations: (o) => call(() => getActivityRecommendations(client, o)),
+    // Recommendations come from the raw activity rows, so attach uploaded images
+    // here too or Home's "Recommended for you" cards fall back to the category photo.
+    getRecommendations: (o) =>
+      call(async () => {
+        const result = await getActivityRecommendations(client, o);
+        const recommendations = await Promise.all(
+          result.recommendations.map(async (rec) => ({
+            ...rec,
+            activity: (await withImages(client, rec.activity)) ?? rec.activity,
+          })),
+        );
+        return { ...result, recommendations };
+      }),
     listActivities: (f) =>
       call(async () => {
         const rows = filterActivities(await listActivities(client), f ?? {});
@@ -93,7 +105,14 @@ export function createSupabaseActivities(client: CommunityLinkClient): ActivityS
           get excludedActivityIds() {
             return session.excludedActivityIds;
           },
-          load: (o) => call(() => session.load(o)),
+          // Attach uploaded images so Discover cards show the first one, not the category photo.
+          load: (o) =>
+            call(async () => {
+              const rows = await session.load(o);
+              return Promise.all(
+                rows.map(async (activity) => (await withImages(client, activity)) ?? activity),
+              );
+            }),
           act: (id, action) => call(() => session.act(id, action)),
         };
       }),

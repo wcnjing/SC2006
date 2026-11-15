@@ -188,12 +188,27 @@ app.get('/auth/mockpass/start', (request, response) => {
 
 app.get('/auth/mockpass/callback', async (request, response) => {
   try {
-    const { code, state } = request.query;
+    const {
+      code,
+      state,
+      error: mockpassError,
+      error_description: mockpassErrorDescription,
+    } = request.query;
+    if (mockpassError) {
+      throw new Error(
+        `Mockpass returned an error: ${mockpassError} ${mockpassErrorDescription ?? ''}`,
+      );
+    }
+    if (typeof state !== 'string') throw new Error('Mockpass callback is missing state');
     const pending = pendingStates.get(state);
     pendingStates.delete(state);
-    if (typeof code !== 'string' || typeof state !== 'string' || !pending) {
-      throw new Error('Invalid or expired Mockpass callback');
+    if (!pending) {
+      throw new Error(
+        'Unknown Mockpass state: the auth service restarted since login began, the callback was ' +
+          'reused (refresh/back), or login did not start at /auth/mockpass/start',
+      );
     }
+    if (typeof code !== 'string') throw new Error('Mockpass callback is missing code');
     if (Date.now() - pending.createdAt > 5 * 60 * 1000) {
       throw new Error('Mockpass login expired');
     }
